@@ -9,7 +9,7 @@ An approach to define & update iptables rules atomically. No hiccups and easy ro
 ## How?
 
 swdfw manages its rules in a separate chain and uses iptables `--goto` to specify target rule set where to jump to.
-All you have to do is allow swdfw to set up jump to its managed output chain (`SWDFW-OUTPUT` by default), or set it up by yourself.
+All you have to do is allow swdfw to set up jump to its managed input & output chains (`SWDFW-INPUT` & `SWDFW-OUTPUT` by default), or set them up by yourself.
 
 ### Replacing rules
 
