@@ -160,6 +160,12 @@ func TestChainDocker(t *testing.T) {
 		chain.WithCustomExecutor(dockerExecutor),
 		chain.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
 	)
+	defer func() {
+		cerr := c.Close()
+		if cerr != nil {
+			t.Logf("failed to close chainmanager: %s", cerr)
+		}
+	}()
 	inputRules := []rule.Rule{
 		{
 			Direction: "input",

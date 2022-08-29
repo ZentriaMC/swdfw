@@ -129,3 +129,8 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (er
 	}
 	return
 }
+
+func (c *ChainManagerIPTables) Close() (err error) {
+	// no-op
+	return
+}

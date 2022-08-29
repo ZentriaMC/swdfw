@@ -2,12 +2,14 @@ package chain
 
 import (
 	"context"
+	"io"
 
 	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
 type ChainManager interface {
+	io.Closer
 	ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) (err error)
 	InstallBaseChain(ctx context.Context, name, parentChain string) (err error)
 	DeleteChain(ctx context.Context, name string) (err error)

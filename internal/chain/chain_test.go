@@ -16,6 +16,12 @@ func TestChain(t *testing.T) {
 		chain.WithCustomExecutor(sg.Executor()),
 		chain.WithProtocols(rule.ProtocolIPv4),
 	)
+	defer func() {
+		cerr := c.Close()
+		if cerr != nil {
+			t.Logf("failed to close chainmanager: %s", cerr)
+		}
+	}()
 
 	rules := []rule.Rule{
 		{
