@@ -147,14 +147,16 @@ func TestChainDocker(t *testing.T) {
 		rule.WithCustomExecutor(dockerExecutor),
 		rule.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
 	)
-	rules := []rule.Rule{
+	inputRules := []rule.Rule{
 		{
-			Protocol: "tcp",
-			CIDR:     "10.123.0.1/24",
-			Port:     22,
-			Action:   "allow",
+			Direction: "input",
+			Protocol:  "tcp",
+			CIDR:      "10.123.0.1/24",
+			Port:      22,
+			Action:    "allow",
 		},
 		{
+			Direction: "input",
 			Protocol:  "tcp",
 			CIDR:      "0.0.0.0/0",
 			Action:    "allow",
@@ -162,6 +164,7 @@ func TestChainDocker(t *testing.T) {
 			EndPort:   4096,
 		},
 		{
+			Direction: "input",
 			Protocol:  "tcpv6",
 			CIDR:      "::/0",
 			Action:    "allow",
@@ -169,30 +172,50 @@ func TestChainDocker(t *testing.T) {
 			EndPort:   4096,
 		},
 		{
-			Protocol: "tcp",
-			CIDR:     "0.0.0.0/0",
-			Action:   "block",
+			Direction: "input",
+			Protocol:  "tcp",
+			CIDR:      "0.0.0.0/0",
+			Action:    "block",
 		},
 		{
-			Protocol: "tcpv6",
-			CIDR:     "::/0",
-			Action:   "block",
+			Direction: "input",
+			Protocol:  "tcpv6",
+			CIDR:      "::/0",
+			Action:    "block",
 		},
 	}
 
+	outputRules := []rule.Rule{}
+
 	ctx := context.Background()
-	base := "SWDFW-INPUT"
-	err := c.InstallBaseChain(ctx, base, "INPUT")
+	baseInput := "SWDFW-INPUT"
+	baseOutput := "SWDFW-OUTPUT"
+	err := c.InstallBaseChain(ctx, baseInput, "INPUT")
 	if err != nil {
-		t.Fatalf("failed to install base chain: %s", err)
+		t.Fatalf("failed to install base input chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules", base, "", rules)
+	err = c.InstallBaseChain(ctx, baseOutput, "OUTPUT")
+	if err != nil {
+		t.Fatalf("failed to install base output chain: %s", err)
+	}
+
+	err = c.ReplaceChain(ctx, "basicrules-input", baseInput, "", inputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules", base, "", rules)
+	err = c.ReplaceChain(ctx, "basicrules-input", baseInput, "", inputRules)
+	if err != nil {
+		t.Fatalf("failed to replace chain: %s", err)
+	}
+
+	err = c.ReplaceChain(ctx, "basicrules-output", baseOutput, "", outputRules)
+	if err != nil {
+		t.Fatalf("failed to replace chain: %s", err)
+	}
+
+	err = c.ReplaceChain(ctx, "basicrules-output", baseOutput, "", outputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
