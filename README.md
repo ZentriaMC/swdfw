@@ -45,12 +45,20 @@ With swdfw, applying a new set of rules is as fast as machine can swap out the r
 
 - [x] Proof of concept output rules generation + integration test
 - [ ] Output rules
+- [ ] Rules covering all protocols or only handling interfaces
+- [ ] Rules declaration (file format/structure)
 - [ ] Tunables
     - [ ] Default INPUT/OUTPUT policy handling
     - [ ] DROP instead of REJECT
     - [ ] Collecting rules targeting same CIDR with different ports into [multiport match][iptables-extensions-multiport]
+    - [ ] Collecting rules targeting different CIDRs with same ports into [ipset][ipset]
 - [ ] [ipset][ipset] support
 - [ ] [nftables][nftables] support
+
+## Known issues
+
+- [ ] Limits are not documented
+    - iptables chain name length is strictly 29. Current update logic needs reserving 6 characters (could do less).
 
 ## License
 
