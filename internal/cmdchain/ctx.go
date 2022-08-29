@@ -26,6 +26,6 @@ func Parent(ctx context.Context) CommandChain {
 	return ctx.Value(ContextParent).(CommandChain)
 }
 
-func AsCheck(ctx context.Context, to CommandChain) context.Context {
+func asCheck(ctx context.Context, to CommandChain) context.Context {
 	return context.WithValue(ctx, ContextCheck, to)
 }

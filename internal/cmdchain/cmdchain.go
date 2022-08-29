@@ -70,7 +70,7 @@ func (c *cmdChain) WithNegated(negated bool) CommandChain {
 
 func (c *cmdChain) WithCheck(name string, chainFunc ChainChildFunc) CommandChain {
 	checkChain := chainFunc(
-		NewCommandChain(AsCheck(c.ctx, c), name).
+		NewCommandChain(asCheck(c.ctx, c), name).
 			WithExecutor(c.executor).
 			WithErrInterceptor(c.interceptor),
 	)
