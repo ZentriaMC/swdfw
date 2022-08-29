@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"go.uber.org/multierr"
 )
@@ -19,6 +20,7 @@ type CommandChain interface {
 	WithCheck(name string, chain ChainChildFunc) CommandChain
 	WithExecutor(executor Executor) CommandChain
 	WithErrInterceptor(interceptor ErrInterceptor) CommandChain
+	WithOutput(stdout, stderr io.Writer) CommandChain
 	Args(args ...string) CommandChain
 	ArgsGroup(children ...ChainChildFunc) CommandChain
 
@@ -45,6 +47,8 @@ type cmdChain struct {
 	negated     bool
 	checks      []CommandChain
 
+	stdout   io.Writer
+	stderr   io.Writer
 	args     []string
 	children []CommandChain
 }
@@ -71,6 +75,7 @@ func (c *cmdChain) WithNegated(negated bool) CommandChain {
 func (c *cmdChain) WithCheck(name string, chainFunc ChainChildFunc) CommandChain {
 	checkChain := chainFunc(
 		NewCommandChain(asCheck(c.ctx, c), name).
+			WithOutput(c.stdout, c.stderr).
 			WithExecutor(c.executor).
 			WithErrInterceptor(c.interceptor),
 	)
@@ -94,6 +99,12 @@ func (c *cmdChain) WithErrInterceptor(interceptor ErrInterceptor) CommandChain {
 	return c
 }
 
+func (c *cmdChain) WithOutput(stdout, stderr io.Writer) CommandChain {
+	c.stdout = stdout
+	c.stderr = stderr
+	return c
+}
+
 func (c *cmdChain) Args(args ...string) CommandChain {
 	/*
 		c.args = make([]string, len(args))
@@ -107,6 +118,7 @@ func (c *cmdChain) ArgsGroup(children ...ChainChildFunc) CommandChain {
 	for _, childFunc := range children {
 		ctx := context.WithValue(c.ctx, ContextParent, c)
 		child := childFunc(NewCommandChain(ctx, fmt.Sprintf("%s-child-%d", c.Name(), len(c.children))).
+			WithOutput(c.stdout, c.stderr).
 			WithExecutor(c.executor).
 			WithErrInterceptor(c.interceptor))
 		c.children = append(c.children, child)
@@ -139,6 +151,7 @@ func (c *cmdChain) Run() (err error) {
 	}
 
 	if len(c.args) > 0 {
+		ctx = withInputOutput(ctx, c.stdout, c.stderr)
 		err = c.interceptor(c.executor(ctx, c.args...))
 	} else if len(c.children) > 0 {
 		for _, child := range c.children {

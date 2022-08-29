@@ -122,11 +122,18 @@ func TestChainDocker(t *testing.T) {
 			for i, e := range command {
 				command[i] = strconv.Quote(e)
 			}
+
+			var execOpts dockertest.ExecOptions
+			execOpts.StdOut, execOpts.StdErr = cmdchain.InputOutput(ctx)
+			if execOpts.StdOut == nil {
+				execOpts.StdOut = &stdout
+			}
+			if execOpts.StdErr == nil {
+				execOpts.StdErr = &stderr
+			}
+
 			cmd := []string{"/bin/sh", "-xc", strings.Join(command, " ")}
-			exitCode, err = dockerResources["iptables"].Exec(cmd, dockertest.ExecOptions{
-				StdOut: &stdout,
-				StdErr: &stderr,
-			})
+			exitCode, err = dockerResources["iptables"].Exec(cmd, execOpts)
 
 			if stdout.Len() > 0 {
 				fmt.Println(strings.TrimRight(stderr.String(), "\n"))

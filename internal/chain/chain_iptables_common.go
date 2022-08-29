@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"io"
 
 	"go.uber.org/multierr"
 
@@ -48,8 +49,8 @@ func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
 			WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-				// TODO: silence this
 				return cc.WithErrInterceptor(IPTablesIsErrNotExist(false)).
+					WithOutput(io.Discard, nil).
 					WithNegated(true).
 					Args(c.cmdChainExists(proto, table, chainName)...)
 			}).

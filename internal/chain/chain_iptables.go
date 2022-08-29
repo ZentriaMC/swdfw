@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"go.uber.org/multierr"
@@ -106,8 +107,8 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (er
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
 			WithCheck("chain-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-				// TODO: silence this
 				return cc.
+					WithOutput(io.Discard, nil).
 					WithErrInterceptor(IPTablesIsErrNotExist(true)).
 					Args(c.cmdChainExists(proto, "filter", name)...)
 			}).

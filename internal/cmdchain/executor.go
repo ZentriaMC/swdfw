@@ -19,8 +19,14 @@ var (
 	DefaultChainExecutor Executor = func(ctx context.Context, command ...string) (err error) {
 		var stderr bytes.Buffer
 		cmd := exec.CommandContext(ctx, command[0], command[1:]...)
-		cmd.Stdout = &zapio.Writer{Log: zap.L().With(zap.String("program", command[0])), Level: zap.DebugLevel}
-		cmd.Stderr = &stderr
+		cmd.Stdout, cmd.Stderr = InputOutput(ctx)
+
+		if cmd.Stdout == nil {
+			cmd.Stdout = &zapio.Writer{Log: zap.L().With(zap.String("program", command[0])), Level: zap.DebugLevel}
+		}
+		if cmd.Stderr == nil {
+			cmd.Stderr = &stderr
+		}
 
 		defer func() {
 			_ = cmd.Stdout.(io.Closer).Close()
