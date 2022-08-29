@@ -113,9 +113,12 @@ func (r *Rule) ToRulespec() (s []string, err error) {
 	if err = r.Validate(); err != nil {
 		return
 	}
-	s = []string{
-		"-s", r.CIDR,
-		"-p", r.ProtocolName(),
+	s = []string{"-s", r.CIDR}
+
+	if r.Protocol != "icmpv6" {
+		s = append(s, "-p", r.ProtocolName())
+	} else {
+		s = append(s, "-p", r.Protocol)
 	}
 
 	if r.Port > 0 {
