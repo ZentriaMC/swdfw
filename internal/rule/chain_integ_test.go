@@ -65,10 +65,9 @@ func testEntrypoint(m *testing.M) (exitCode int) {
 	}()
 
 	err = setupResource("iptables")(dockerPool.BuildAndRunWithOptions("../../test/Dockerfile.iptables", &dockertest.RunOptions{
-		Name:       fmt.Sprintf("iptables-testing-%d", time.Now().Unix()),
-		Privileged: true,
-		CapAdd:     []string{"NET_ADMIN"},
-		Cmd:        []string{"/bin/sh", "-c", "while sleep 3600; do :; done"},
+		Name:   fmt.Sprintf("iptables-testing-%d", time.Now().Unix()),
+		CapAdd: []string{"NET_ADMIN"},
+		Cmd:    []string{"/bin/sh", "-c", "while sleep 3600; do :; done"},
 	}, func(hc *docker.HostConfig) {
 		hc.AutoRemove = true
 		hc.RestartPolicy = docker.NeverRestart()
