@@ -17,22 +17,22 @@ type ChainManager interface {
 
 type ChainManagerOpt func(ChainManager)
 
-func NewChainManager(opts ...ChainManagerOpt) (c ChainManager) {
-	cm := &ChainManagerIPTables{
-		chainManagerBase: chainManagerBase{
-			executor:      cmdchain.DefaultChainExecutor,
-			executeChecks: true,
-			protocols: map[rule.Protocol]bool{
-				rule.ProtocolIPv4: true,
-				rule.ProtocolIPv6: true,
-			},
+func NewChainManager(opts ...ChainManagerOpt) (c ChainManager, err error) {
+	cm := newChainManagerIPTables(&chainManagerBase{
+		executor:      cmdchain.DefaultChainExecutor,
+		executeChecks: true,
+		protocols: map[rule.Protocol]bool{
+			rule.ProtocolIPv4: true,
+			rule.ProtocolIPv6: true,
 		},
-	}
+	})
 
 	for _, opt := range opts {
 		opt(cm)
 	}
-	return cm
+
+	err = cm.init()
+	return cm, err
 }
 
 func WithCustomExecutor(executor cmdchain.Executor) ChainManagerOpt {

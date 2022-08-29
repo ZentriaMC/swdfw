@@ -12,8 +12,17 @@ import (
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
+func (c *ChainManagerIPTables) prog(proto rule.Protocol) (progName string) {
+	if proto == rule.ProtocolIPv4 {
+		progName = c.iptablesPath
+	} else {
+		progName = c.ip6tablesPath
+	}
+	return
+}
+
 func (c *ChainManagerIPTables) iptables(proto rule.Protocol, table, action, chainName string, args ...string) []string {
-	return append([]string{proto.Prog(), "--wait", "1", "-t", table, action, chainName}, args...)
+	return append([]string{c.prog(proto), "--wait", "1", "-t", table, action, chainName}, args...)
 }
 
 func (c *ChainManagerIPTables) cmdChainExists(proto rule.Protocol, table string, chain string) []string {
@@ -29,7 +38,7 @@ func (c *ChainManagerIPTables) cmdCreateChain(proto rule.Protocol, table string,
 }
 
 func (c *ChainManagerIPTables) runProtocol(ctx context.Context, proto rule.Protocol, table, action, chainName string, args ...string) (err error) {
-	return cmdchain.NewCommandChain(ctx, proto.Prog()).
+	return cmdchain.NewCommandChain(ctx, c.prog(proto)).
 		WithErrInterceptor(IPTablesIsErrAlreadyExist(false)).
 		WithExecutor(c.executor).
 		WithEnableChecks(c.executeChecks).
@@ -47,7 +56,7 @@ func (c *ChainManagerIPTables) runAllProtocols(ctx context.Context, table, actio
 
 func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table string, chainName string) (err error) {
 	for proto := range c.protocols {
-		rerr := cmdchain.NewCommandChain(ctx, proto.Prog()).
+		rerr := cmdchain.NewCommandChain(ctx, c.prog(proto)).
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
 			WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {

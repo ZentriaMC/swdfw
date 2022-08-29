@@ -23,6 +23,62 @@ var (
 	hasDocker       = true
 	dockerPool      *dockertest.Pool
 	dockerResources = map[string]*dockertest.Resource{}
+
+	dockerExecutor cmdchain.Executor = func(ctx context.Context, command ...string) (err error) {
+		var exitCode int
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+
+		err = dockerPool.Retry(func() (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					if e, ok := r.(error); ok {
+						err = e
+					} else {
+						err = fmt.Errorf("%v", r)
+					}
+				}
+			}()
+
+			stdout.Reset()
+			stderr.Reset()
+
+			for i, e := range command {
+				command[i] = strconv.Quote(e)
+			}
+
+			var execOpts dockertest.ExecOptions
+			execOpts.StdOut, execOpts.StdErr = cmdchain.InputOutput(ctx)
+			if execOpts.StdOut == nil {
+				execOpts.StdOut = &stdout
+			}
+			if execOpts.StdErr == nil {
+				execOpts.StdErr = &stderr
+			}
+
+			cmd := []string{"/bin/sh", "-xc", strings.Join(command, " ")}
+			exitCode, err = dockerResources["iptables"].Exec(cmd, execOpts)
+
+			fmt.Println(strings.TrimRight(stderr.String(), "\n"))
+			if stdout.Len() > 0 {
+				fmt.Println(strings.TrimRight(stdout.String(), "\n"))
+			}
+			return
+		})
+		if err != nil {
+			return
+		}
+
+		if exitCode != 0 {
+			err = &cmdchain.ChainExecError{
+				Args:    command,
+				Stderr_: stderr.String(),
+				Status:  exitCode,
+			}
+		}
+
+		return
+	}
 )
 
 func TestMain(m *testing.M) {
@@ -100,66 +156,15 @@ func TestChainDocker(t *testing.T) {
 		t.SkipNow()
 	}
 
-	var dockerExecutor cmdchain.Executor = func(ctx context.Context, command ...string) (err error) {
-		var exitCode int
-		var stdout bytes.Buffer
-		var stderr bytes.Buffer
-
-		err = dockerPool.Retry(func() (err error) {
-			defer func() {
-				if r := recover(); r != nil {
-					if e, ok := r.(error); ok {
-						err = e
-					} else {
-						err = fmt.Errorf("%v", r)
-					}
-				}
-			}()
-
-			stdout.Reset()
-			stderr.Reset()
-
-			for i, e := range command {
-				command[i] = strconv.Quote(e)
-			}
-
-			var execOpts dockertest.ExecOptions
-			execOpts.StdOut, execOpts.StdErr = cmdchain.InputOutput(ctx)
-			if execOpts.StdOut == nil {
-				execOpts.StdOut = &stdout
-			}
-			if execOpts.StdErr == nil {
-				execOpts.StdErr = &stderr
-			}
-
-			cmd := []string{"/bin/sh", "-xc", strings.Join(command, " ")}
-			exitCode, err = dockerResources["iptables"].Exec(cmd, execOpts)
-
-			if stdout.Len() > 0 {
-				fmt.Println(strings.TrimRight(stderr.String(), "\n"))
-				fmt.Println(strings.TrimRight(stdout.String(), "\n"))
-			}
-			return
-		})
-		if err != nil {
-			return
-		}
-
-		if exitCode != 0 {
-			err = &cmdchain.ChainExecError{
-				Args:    command,
-				Stderr_: stderr.String(),
-				Status:  exitCode,
-			}
-		}
-
-		return
-	}
-
-	c := chain.NewChainManager(
+	c, err := chain.NewChainManager(
 		chain.WithCustomExecutor(dockerExecutor),
 		chain.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
+		chain.VerifyIPTablesPath(false),
 	)
+	if err != nil {
+		t.Fatalf("failed to initialize chainmanager: %s", err)
+	}
+
 	defer func() {
 		cerr := c.Close()
 		if cerr != nil {
@@ -207,9 +212,22 @@ func TestChainDocker(t *testing.T) {
 	outputRules := []rule.Rule{}
 
 	ctx := context.Background()
+
+	defer func() {
+		var collectedRules bytes.Buffer
+		_, err := dockerResources["iptables"].Exec([]string{"/bin/sh", "-c", "iptables-save && ip6tables-save"}, dockertest.ExecOptions{
+			StdOut: &collectedRules,
+		})
+		if err != nil {
+			t.Fatalf("failed to get rules: %s", err)
+		}
+
+		fmt.Println(strings.TrimRight(collectedRules.String(), "\n"))
+	}()
+
 	baseInput := "SWDFW-INPUT"
 	baseOutput := "SWDFW-OUTPUT"
-	err := c.InstallBaseChain(ctx, baseInput, "INPUT")
+	err = c.InstallBaseChain(ctx, baseInput, "INPUT")
 	if err != nil {
 		t.Fatalf("failed to install base input chain: %s", err)
 	}
@@ -238,14 +256,4 @@ func TestChainDocker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
-
-	var collectedRules bytes.Buffer
-	_, err = dockerResources["iptables"].Exec([]string{"/bin/sh", "-c", "iptables-save && ip6tables-save"}, dockertest.ExecOptions{
-		StdOut: &collectedRules,
-	})
-	if err != nil {
-		t.Fatalf("failed to get rules: %s", err)
-	}
-
-	fmt.Println(strings.TrimRight(collectedRules.String(), "\n"))
 }

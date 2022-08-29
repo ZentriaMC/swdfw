@@ -13,7 +13,26 @@ import (
 )
 
 type ChainManagerIPTables struct {
-	chainManagerBase
+	*chainManagerBase
+
+	iptablesPath       string
+	ip6tablesPath      string
+	verifyIptablesPath bool
+}
+
+func newChainManagerIPTables(base *chainManagerBase) (c *ChainManagerIPTables) {
+	c = &ChainManagerIPTables{
+		chainManagerBase:   base,
+		iptablesPath:       "iptables",
+		ip6tablesPath:      "ip6tables",
+		verifyIptablesPath: false,
+	}
+	return
+}
+
+func (c *ChainManagerIPTables) init() (err error) {
+	// TODO: c.verifyIptablesPath
+	return
 }
 
 func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) (err error) {
@@ -44,7 +63,7 @@ func (c *ChainManagerIPTables) InstallBaseChain(ctx context.Context, name, paren
 
 	jump := []string{"-j", name}
 	for proto := range c.protocols {
-		rerr := cmdchain.NewCommandChain(ctx, proto.Prog()).
+		rerr := cmdchain.NewCommandChain(ctx, c.prog(proto)).
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
 			WithCheck("parent-rule-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {

@@ -12,10 +12,15 @@ import (
 
 func TestChain(t *testing.T) {
 	sg := cmdchain.NewShellScriptGenerator("#!/bin/sh")
-	c := chain.NewChainManager(
+	c, err := chain.NewChainManager(
 		chain.WithCustomExecutor(sg.Executor()),
 		chain.WithProtocols(rule.ProtocolIPv4),
+		chain.VerifyIPTablesPath(false),
 	)
+	if err != nil {
+		t.Fatalf("failed to initialize chainmanager: %s", err)
+	}
+
 	defer func() {
 		cerr := c.Close()
 		if cerr != nil {
@@ -53,7 +58,7 @@ func TestChain(t *testing.T) {
 
 	ctx := context.Background()
 	base := "SWDFW-INPUT"
-	err := c.InstallBaseChain(ctx, base, "INPUT")
+	err = c.InstallBaseChain(ctx, base, "INPUT")
 	if err != nil {
 		t.Fatalf("failed to install base chain: %s", err)
 	}
