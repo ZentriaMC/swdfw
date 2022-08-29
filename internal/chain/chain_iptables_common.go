@@ -2,9 +2,11 @@ package chain
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 
 	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 	"github.com/ZentriaMC/swdfw/internal/rule"
@@ -59,5 +61,44 @@ func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table
 
 		err = multierr.Append(err, rerr)
 	}
+	return
+}
+
+func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempName, jumpTo string, rules []rule.Rule) (err error) {
+	if err = c.createChainIfNotExists(ctx, "filter", tempName); err != nil {
+		err = fmt.Errorf("failed to create a firewall chain: %w", err)
+		return
+	}
+
+	defer func() {
+		if err != nil {
+			derr := c.DeleteChain(context.Background(), tempName)
+			if derr != nil {
+				zap.L().Error("failed to delete chain", zap.Error(err))
+			}
+		}
+	}()
+
+	var rulespec []string
+	var rerr error
+	for _, rule := range rules {
+		proto := rule.Proto()
+		if _, ok := c.protocols[proto]; !ok {
+			continue
+		}
+
+		if rulespec, rerr = rule.ToRulespec(realName); rerr != nil {
+			err = multierr.Append(err, rerr)
+			continue
+		}
+
+		err = multierr.Append(err, c.runProtocol(ctx, proto, "filter", "-A", tempName, rulespec...))
+	}
+
+	if jumpTo != "" {
+		cerr := c.runAllProtocols(ctx, "filter", "-A", tempName, "-g", jumpTo)
+		err = multierr.Append(err, cerr)
+	}
+
 	return
 }
