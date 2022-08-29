@@ -29,7 +29,10 @@ var (
 		}
 
 		defer func() {
-			_ = cmd.Stdout.(io.Closer).Close()
+			closer, ok := cmd.Stdout.(io.Closer)
+			if ok {
+				_ = closer.Close()
+			}
 		}()
 
 		err = cmd.Run()
