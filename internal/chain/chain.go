@@ -1,13 +1,14 @@
-package rule
+package chain
 
 import (
 	"context"
 
 	"github.com/ZentriaMC/swdfw/internal/cmdchain"
+	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
 type ChainManager interface {
-	ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []Rule) (err error)
+	ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) (err error)
 	InstallBaseChain(ctx context.Context, name, parentChain string) (err error)
 	DeleteChain(ctx context.Context, name string) (err error)
 }
@@ -19,9 +20,9 @@ func NewChainManager(opts ...ChainManagerOpt) (c ChainManager) {
 		chainManagerBase: chainManagerBase{
 			executor:      cmdchain.DefaultChainExecutor,
 			executeChecks: true,
-			protocols: map[Protocol]bool{
-				ProtocolIPv4: true,
-				ProtocolIPv6: true,
+			protocols: map[rule.Protocol]bool{
+				rule.ProtocolIPv4: true,
+				rule.ProtocolIPv6: true,
 			},
 		},
 	}
@@ -40,7 +41,7 @@ func WithCustomExecutor(executor cmdchain.Executor) ChainManagerOpt {
 	}
 }
 
-func WithProtocols(enabledProtocols ...Protocol) ChainManagerOpt {
+func WithProtocols(enabledProtocols ...rule.Protocol) ChainManagerOpt {
 	return func(c ChainManager) {
 		c.(chainManagerBaseGetter).Mut(func(cm *chainManagerBase) {
 			// Clear existing values
@@ -68,7 +69,7 @@ func WithChecks(check bool) ChainManagerOpt {
 type chainManagerBase struct {
 	executor      cmdchain.Executor
 	executeChecks bool
-	protocols     map[Protocol]bool
+	protocols     map[rule.Protocol]bool
 }
 
 type chainManagerBaseGetter interface {

@@ -1,18 +1,19 @@
-package rule_test
+package chain_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
+	"github.com/ZentriaMC/swdfw/internal/chain"
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
 func TestChain(t *testing.T) {
 	sg := rule.NewShellScriptGenerator("#!/bin/sh")
-	c := rule.NewChainManager(
-		rule.WithCustomExecutor(sg.Executor()),
-		rule.WithProtocols(rule.ProtocolIPv4),
+	c := chain.NewChainManager(
+		chain.WithCustomExecutor(sg.Executor()),
+		chain.WithProtocols(rule.ProtocolIPv4),
 	)
 	rules := []rule.Rule{
 		{

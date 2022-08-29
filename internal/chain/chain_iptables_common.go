@@ -1,4 +1,4 @@
-package rule
+package chain
 
 import (
 	"context"
@@ -6,25 +6,26 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/ZentriaMC/swdfw/internal/cmdchain"
+	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
-func (c *ChainManagerIPTables) iptables(proto Protocol, table, action, chainName string, args ...string) []string {
+func (c *ChainManagerIPTables) iptables(proto rule.Protocol, table, action, chainName string, args ...string) []string {
 	return append([]string{proto.Prog(), "--wait", "1", "-t", table, action, chainName}, args...)
 }
 
-func (c *ChainManagerIPTables) cmdChainExists(proto Protocol, table string, chain string) []string {
+func (c *ChainManagerIPTables) cmdChainExists(proto rule.Protocol, table string, chain string) []string {
 	return c.iptables(proto, table, "-S", chain, "1")
 }
 
-func (c *ChainManagerIPTables) cmdRuleExists(proto Protocol, table string, chain string, rulespec ...string) []string {
+func (c *ChainManagerIPTables) cmdRuleExists(proto rule.Protocol, table string, chain string, rulespec ...string) []string {
 	return c.iptables(proto, table, "-C", chain, rulespec...)
 }
 
-func (c *ChainManagerIPTables) cmdCreateChain(proto Protocol, table string, chain string) []string {
+func (c *ChainManagerIPTables) cmdCreateChain(proto rule.Protocol, table string, chain string) []string {
 	return c.iptables(proto, table, "-N", chain)
 }
 
-func (c *ChainManagerIPTables) runProtocol(ctx context.Context, proto Protocol, table, action, chainName string, args ...string) (err error) {
+func (c *ChainManagerIPTables) runProtocol(ctx context.Context, proto rule.Protocol, table, action, chainName string, args ...string) (err error) {
 	return cmdchain.NewCommandChain(ctx, proto.Prog()).
 		WithErrInterceptor(IPTablesIsErrAlreadyExist(false)).
 		WithExecutor(c.executor).

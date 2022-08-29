@@ -1,4 +1,4 @@
-package rule
+package chain
 
 import (
 	"context"
@@ -9,13 +9,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ZentriaMC/swdfw/internal/cmdchain"
+	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
 type ChainManagerIPTables struct {
 	chainManagerBase
 }
 
-func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempName, jumpTo string, rules []Rule) (err error) {
+func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempName, jumpTo string, rules []rule.Rule) (err error) {
 	if err = c.createChainIfNotExists(ctx, "filter", tempName); err != nil {
 		err = fmt.Errorf("failed to create a firewall chain: %w", err)
 		return
@@ -54,36 +55,7 @@ func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempNa
 	return
 }
 
-func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (err error) {
-	for proto := range c.protocols {
-		rerr := cmdchain.NewCommandChain(ctx, "chain-delete").
-			WithExecutor(c.executor).
-			WithEnableChecks(c.executeChecks).
-			WithCheck("chain-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-				// TODO: silence this
-				return cc.
-					WithErrInterceptor(IPTablesIsErrNotExist(true)).
-					Args(c.cmdChainExists(proto, "filter", name)...)
-			}).
-			ArgsGroup(
-				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-					return cc.
-						WithName("flush-chain").
-						Args(c.iptables(proto, "filter", "-F", name)...)
-				},
-				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-					return cc.
-						WithName("delete-chain").
-						Args(c.iptables(proto, "filter", "-X", name)...)
-				},
-			).
-			Run()
-		err = multierr.Append(err, rerr)
-	}
-	return
-}
-
-func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []Rule) (err error) {
+func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) (err error) {
 	tempName := fmt.Sprintf("%s:%d", name, time.Now().Unix()&0xFFFF)
 	if err = c.createChain(ctx, name, tempName, jumpTo, rules); err != nil {
 		return
@@ -125,5 +97,34 @@ func (c *ChainManagerIPTables) InstallBaseChain(ctx context.Context, name, paren
 		err = multierr.Append(err, rerr)
 	}
 
+	return
+}
+
+func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (err error) {
+	for proto := range c.protocols {
+		rerr := cmdchain.NewCommandChain(ctx, "chain-delete").
+			WithExecutor(c.executor).
+			WithEnableChecks(c.executeChecks).
+			WithCheck("chain-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+				// TODO: silence this
+				return cc.
+					WithErrInterceptor(IPTablesIsErrNotExist(true)).
+					Args(c.cmdChainExists(proto, "filter", name)...)
+			}).
+			ArgsGroup(
+				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+					return cc.
+						WithName("flush-chain").
+						Args(c.iptables(proto, "filter", "-F", name)...)
+				},
+				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+					return cc.
+						WithName("delete-chain").
+						Args(c.iptables(proto, "filter", "-X", name)...)
+				},
+			).
+			Run()
+		err = multierr.Append(err, rerr)
+	}
 	return
 }

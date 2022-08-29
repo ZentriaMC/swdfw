@@ -1,4 +1,4 @@
-package rule_test
+package chain_test
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"go.uber.org/zap"
 
+	"github.com/ZentriaMC/swdfw/internal/chain"
 	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
@@ -148,9 +149,9 @@ func TestChainDocker(t *testing.T) {
 		return
 	}
 
-	c := rule.NewChainManager(
-		rule.WithCustomExecutor(dockerExecutor),
-		rule.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
+	c := chain.NewChainManager(
+		chain.WithCustomExecutor(dockerExecutor),
+		chain.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
 	)
 	inputRules := []rule.Rule{
 		{
