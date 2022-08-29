@@ -42,7 +42,7 @@ func TestSimpleRule(t *testing.T) {
 
 	var strRules []string
 	for _, r := range rules {
-		rules, err := r.ToRulespec()
+		rules, err := r.ToRulespec("testchain")
 		if err != nil {
 			t.Fatalf("failed to create rule: %s", err)
 		}

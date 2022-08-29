@@ -61,15 +61,15 @@ func WithChecks(check bool) ChainManagerOpt {
 	}
 }
 
-func (c *ChainManager) CreateChain(ctx context.Context, name, jumpTo string, rules []Rule) (err error) {
-	if err = c.createChainIfNotExists(ctx, "filter", name); err != nil {
+func (c *ChainManager) CreateChain(ctx context.Context, realName, tempName, jumpTo string, rules []Rule) (err error) {
+	if err = c.createChainIfNotExists(ctx, "filter", tempName); err != nil {
 		err = fmt.Errorf("failed to create a firewall chain: %w", err)
 		return
 	}
 
 	defer func() {
 		if err != nil {
-			derr := c.DeleteChain(context.Background(), name)
+			derr := c.DeleteChain(context.Background(), tempName)
 			if derr != nil {
 				zap.L().Error("failed to delete chain", zap.Error(err))
 			}
@@ -84,16 +84,16 @@ func (c *ChainManager) CreateChain(ctx context.Context, name, jumpTo string, rul
 			continue
 		}
 
-		if rulespec, rerr = rule.ToRulespec(); rerr != nil {
+		if rulespec, rerr = rule.ToRulespec(realName); rerr != nil {
 			err = multierr.Append(err, rerr)
 			continue
 		}
 
-		err = multierr.Append(err, c.runProtocol(ctx, proto, "filter", "-A", name, rulespec...))
+		err = multierr.Append(err, c.runProtocol(ctx, proto, "filter", "-A", tempName, rulespec...))
 	}
 
 	if jumpTo != "" {
-		cerr := c.runAllProtocols(ctx, "filter", "-A", name, "-g", jumpTo)
+		cerr := c.runAllProtocols(ctx, "filter", "-A", tempName, "-g", jumpTo)
 		err = multierr.Append(err, cerr)
 	}
 
@@ -131,7 +131,7 @@ func (c *ChainManager) DeleteChain(ctx context.Context, name string) (err error)
 
 func (c *ChainManager) ReplaceChain(ctx context.Context, name, parentChain, jumpTo string, rules []Rule) (err error) {
 	tempName := fmt.Sprintf("%s-new%d", name, time.Now().UnixMilli())
-	if err = c.CreateChain(ctx, tempName, jumpTo, rules); err != nil {
+	if err = c.CreateChain(ctx, name, tempName, jumpTo, rules); err != nil {
 		return
 	}
 
