@@ -49,7 +49,7 @@ func TestChain(t *testing.T) {
 		t.Fatalf("failed to install base chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules", base, "", rules)
+	err = c.ConfigureChain(ctx, "basicrules", base, "", rules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}

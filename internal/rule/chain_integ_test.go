@@ -205,22 +205,22 @@ func TestChainDocker(t *testing.T) {
 		t.Fatalf("failed to install base output chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules-input", baseInput, "", inputRules)
+	err = c.ConfigureChain(ctx, "basicrules-input", baseInput, "", inputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules-input", baseInput, "", inputRules)
+	err = c.ConfigureChain(ctx, "basicrules-input", baseInput, "", inputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules-output", baseOutput, "", outputRules)
+	err = c.ConfigureChain(ctx, "basicrules-output", baseOutput, "", outputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
 
-	err = c.ReplaceChain(ctx, "basicrules-output", baseOutput, "", outputRules)
+	err = c.ConfigureChain(ctx, "basicrules-output", baseOutput, "", outputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
