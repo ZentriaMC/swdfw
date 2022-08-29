@@ -6,15 +6,17 @@ import (
 	"testing"
 
 	"github.com/ZentriaMC/swdfw/internal/chain"
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
 func TestChain(t *testing.T) {
-	sg := rule.NewShellScriptGenerator("#!/bin/sh")
+	sg := cmdchain.NewShellScriptGenerator("#!/bin/sh")
 	c := chain.NewChainManager(
 		chain.WithCustomExecutor(sg.Executor()),
 		chain.WithProtocols(rule.ProtocolIPv4),
 	)
+
 	rules := []rule.Rule{
 		{
 			Protocol: "tcp",
