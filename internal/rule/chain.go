@@ -130,7 +130,7 @@ func (c *ChainManager) DeleteChain(ctx context.Context, name string) (err error)
 }
 
 func (c *ChainManager) ReplaceChain(ctx context.Context, name, parentChain, jumpTo string, rules []Rule) (err error) {
-	tempName := fmt.Sprintf("%s-new%d", name, time.Now().UnixMilli())
+	tempName := fmt.Sprintf("%s:%d", name, time.Now().Unix()&0xFFFF)
 	if err = c.CreateChain(ctx, name, tempName, jumpTo, rules); err != nil {
 		return
 	}
