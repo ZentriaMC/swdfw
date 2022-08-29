@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -115,7 +116,12 @@ func TestChainDocker(t *testing.T) {
 				}
 			}()
 
+			stdout.Reset()
 			stderr.Reset()
+
+			for i, e := range command {
+				command[i] = strconv.Quote(e)
+			}
 			cmd := []string{"/bin/sh", "-xc", strings.Join(command, " ")}
 			exitCode, err = dockerResources["iptables"].Exec(cmd, dockertest.ExecOptions{
 				StdOut: &stdout,

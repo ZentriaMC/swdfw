@@ -2,6 +2,7 @@ package rule
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/ZentriaMC/swdfw/internal/chain"
@@ -42,6 +43,9 @@ func (s *ShellScriptGenerator) Executor() chain.Executor {
 			s.stack = append(s.stack, "&&")
 		}
 
+		for i, e := range command {
+			command[i] = strconv.Quote(e)
+		}
 		s.stack = append(s.stack, strings.Join(command, " "))
 
 		if parent == nil {
