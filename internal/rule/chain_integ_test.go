@@ -14,7 +14,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"go.uber.org/zap"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
@@ -99,7 +99,7 @@ func TestChainDocker(t *testing.T) {
 		t.SkipNow()
 	}
 
-	var dockerExecutor chain.Executor = func(ctx context.Context, command ...string) (err error) {
+	var dockerExecutor cmdchain.Executor = func(ctx context.Context, command ...string) (err error) {
 		var exitCode int
 		var stdout bytes.Buffer
 		var stderr bytes.Buffer
@@ -138,7 +138,7 @@ func TestChainDocker(t *testing.T) {
 		}
 
 		if exitCode != 0 {
-			err = &chain.ChainExecError{
+			err = &cmdchain.ChainExecError{
 				Args:    command,
 				Stderr_: stderr.String(),
 				Status:  exitCode,

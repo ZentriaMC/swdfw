@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 )
 
 const (
@@ -14,9 +14,9 @@ const (
 )
 
 // This interceptor checks if iptables reported missing rule/chain and passes
-var IPTablesIsErrNotExist = func(short bool) chain.ErrInterceptor {
+var IPTablesIsErrNotExist = func(short bool) cmdchain.ErrInterceptor {
 	return func(err error) error {
-		var cmdErr *chain.ChainExecError
+		var cmdErr *cmdchain.ChainExecError
 		if !errors.As(err, &cmdErr) || cmdErr.ExitStatus() != 1 {
 			return err
 		}
@@ -26,15 +26,15 @@ var IPTablesIsErrNotExist = func(short bool) chain.ErrInterceptor {
 		}
 
 		if short {
-			return chain.ErrShortCircuit
+			return cmdchain.ErrShortCircuit
 		}
 		return nil
 	}
 }
 
-var IPTablesIsErrAlreadyExist = func(short bool) chain.ErrInterceptor {
+var IPTablesIsErrAlreadyExist = func(short bool) cmdchain.ErrInterceptor {
 	return func(err error) error {
-		var cmdErr *chain.ChainExecError
+		var cmdErr *cmdchain.ChainExecError
 		if !errors.As(err, &cmdErr) || cmdErr.ExitStatus() != 1 {
 			return err
 		}
@@ -44,7 +44,7 @@ var IPTablesIsErrAlreadyExist = func(short bool) chain.ErrInterceptor {
 		}
 
 		if short {
-			return chain.ErrShortCircuit
+			return cmdchain.ErrShortCircuit
 		}
 		return nil
 	}

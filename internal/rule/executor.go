@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 )
 
 type ShellScriptGenerator struct {
@@ -25,12 +25,12 @@ func (s *ShellScriptGenerator) Reset() {
 	s.stack = nil
 }
 
-func (s *ShellScriptGenerator) Executor() chain.Executor {
+func (s *ShellScriptGenerator) Executor() cmdchain.Executor {
 	// TODO: group support
 	return func(ctx context.Context, command ...string) error {
 		hasCheck := len(s.stack) > 1
-		self := chain.Self(ctx)
-		parent := chain.Checking(ctx)
+		self := cmdchain.Self(ctx)
+		parent := cmdchain.Checking(ctx)
 		if parent != nil {
 			s.stack = append(s.stack, "(")
 			if self.Negated() {

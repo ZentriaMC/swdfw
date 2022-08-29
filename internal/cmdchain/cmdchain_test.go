@@ -1,12 +1,13 @@
-package chain_test
+package cmdchain_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
 	"go.uber.org/zap"
+
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 )
 
 func TestMain(m *testing.M) {
@@ -29,8 +30,8 @@ func testEntrypoint(m *testing.M) (exitCode int) {
 func TestSimpleChain(t *testing.T) {
 	ctx := context.Background()
 
-	c := chain.NewCommandChain(ctx, "simple").
-		WithExecutor(chain.LogNoopChainExecutor).
+	c := cmdchain.NewCommandChain(ctx, "simple").
+		WithExecutor(cmdchain.LogNoopChainExecutor).
 		Args("sh", "-c", "echo 'hello'")
 
 	err := c.Run()
@@ -42,8 +43,8 @@ func TestSimpleChain(t *testing.T) {
 func TestChainWithChecks(t *testing.T) {
 	ctx := context.Background()
 
-	c := chain.NewCommandChain(ctx, "simple-with-checks").
-		WithExecutor(chain.LogNoopChainExecutor).
+	c := cmdchain.NewCommandChain(ctx, "simple-with-checks").
+		WithExecutor(cmdchain.LogNoopChainExecutor).
 		WithSimpleCheck("version-check", "sh", "-ec", `x=1; [ "${x}" -gt "0" ]`).
 		Args("sh", "-c", "echo 'checks succeeded'")
 
@@ -55,15 +56,14 @@ func TestChainWithChecks(t *testing.T) {
 
 func TestChainWithChecksDisabled(t *testing.T) {
 	ctx := context.Background()
-
 	collected := map[string]bool{}
-	var collectingExecutor chain.Executor = func(ctx context.Context, args ...string) error {
+	var collectingExecutor cmdchain.Executor = func(ctx context.Context, args ...string) error {
 		cmd := args[0]
 		collected[cmd] = true
 		return nil
 	}
 
-	c := chain.NewCommandChain(ctx, "simple-with-checks").
+	c := cmdchain.NewCommandChain(ctx, "simple-with-checks").
 		WithExecutor(collectingExecutor).
 		WithSimpleCheck("check0", "check0").
 		WithEnableChecks(false).

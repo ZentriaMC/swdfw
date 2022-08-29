@@ -1,4 +1,4 @@
-package chain
+package cmdchain
 
 type ErrInterceptor func(error) error
 

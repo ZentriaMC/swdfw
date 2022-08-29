@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
+
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 )
 
 type ChainManagerIPTables struct {
@@ -55,22 +56,22 @@ func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempNa
 
 func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (err error) {
 	for proto := range c.protocols {
-		rerr := chain.NewCommandChain(ctx, "chain-delete").
+		rerr := cmdchain.NewCommandChain(ctx, "chain-delete").
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
-			WithCheck("chain-exists", func(cc chain.CommandChain) chain.CommandChain {
+			WithCheck("chain-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
 				// TODO: silence this
 				return cc.
 					WithErrInterceptor(IPTablesIsErrNotExist(true)).
 					Args(c.cmdChainExists(proto, "filter", name)...)
 			}).
 			ArgsGroup(
-				func(cc chain.CommandChain) chain.CommandChain {
+				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
 					return cc.
 						WithName("flush-chain").
 						Args(c.iptables(proto, "filter", "-F", name)...)
 				},
-				func(cc chain.CommandChain) chain.CommandChain {
+				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
 					return cc.
 						WithName("delete-chain").
 						Args(c.iptables(proto, "filter", "-X", name)...)
@@ -110,10 +111,10 @@ func (c *ChainManagerIPTables) InstallBaseChain(ctx context.Context, name, paren
 
 	jump := []string{"-j", name}
 	for proto := range c.protocols {
-		rerr := chain.NewCommandChain(ctx, proto.Prog()).
+		rerr := cmdchain.NewCommandChain(ctx, proto.Prog()).
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
-			WithCheck("parent-rule-exists", func(cc chain.CommandChain) chain.CommandChain {
+			WithCheck("parent-rule-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
 				return cc.WithErrInterceptor(IPTablesIsErrNotExist(false)).
 					WithNegated(true).
 					Args(c.cmdRuleExists(proto, "filter", parentChain, jump...)...)

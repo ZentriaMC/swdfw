@@ -3,8 +3,9 @@ package rule
 import (
 	"context"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
 	"go.uber.org/multierr"
+
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 )
 
 func (c *ChainManagerIPTables) iptables(proto Protocol, table, action, chainName string, args ...string) []string {
@@ -24,7 +25,7 @@ func (c *ChainManagerIPTables) cmdCreateChain(proto Protocol, table string, chai
 }
 
 func (c *ChainManagerIPTables) runProtocol(ctx context.Context, proto Protocol, table, action, chainName string, args ...string) (err error) {
-	return chain.NewCommandChain(ctx, proto.Prog()).
+	return cmdchain.NewCommandChain(ctx, proto.Prog()).
 		WithErrInterceptor(IPTablesIsErrAlreadyExist(false)).
 		WithExecutor(c.executor).
 		WithEnableChecks(c.executeChecks).
@@ -42,10 +43,10 @@ func (c *ChainManagerIPTables) runAllProtocols(ctx context.Context, table, actio
 
 func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table string, chainName string) (err error) {
 	for proto := range c.protocols {
-		rerr := chain.NewCommandChain(ctx, proto.Prog()).
+		rerr := cmdchain.NewCommandChain(ctx, proto.Prog()).
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks).
-			WithCheck("chain-check", func(cc chain.CommandChain) chain.CommandChain {
+			WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
 				// TODO: silence this
 				return cc.WithErrInterceptor(IPTablesIsErrNotExist(false)).
 					WithNegated(true).

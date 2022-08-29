@@ -3,7 +3,7 @@ package rule
 import (
 	"context"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
+	"github.com/ZentriaMC/swdfw/internal/cmdchain"
 )
 
 type ChainManager interface {
@@ -17,7 +17,7 @@ type ChainManagerOpt func(ChainManager)
 func NewChainManager(opts ...ChainManagerOpt) (c ChainManager) {
 	cm := &ChainManagerIPTables{
 		chainManagerBase: chainManagerBase{
-			executor:      chain.DefaultChainExecutor,
+			executor:      cmdchain.DefaultChainExecutor,
 			executeChecks: true,
 			protocols: map[Protocol]bool{
 				ProtocolIPv4: true,
@@ -32,7 +32,7 @@ func NewChainManager(opts ...ChainManagerOpt) (c ChainManager) {
 	return cm
 }
 
-func WithCustomExecutor(executor chain.Executor) ChainManagerOpt {
+func WithCustomExecutor(executor cmdchain.Executor) ChainManagerOpt {
 	return func(c ChainManager) {
 		c.(chainManagerBaseGetter).Mut(func(cm *chainManagerBase) {
 			cm.executor = executor
@@ -66,7 +66,7 @@ func WithChecks(check bool) ChainManagerOpt {
 }
 
 type chainManagerBase struct {
-	executor      chain.Executor
+	executor      cmdchain.Executor
 	executeChecks bool
 	protocols     map[Protocol]bool
 }
