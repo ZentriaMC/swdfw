@@ -36,6 +36,20 @@ type Rule struct {
 	StartPort uint16 `json:"start"`
 	EndPort   uint16 `json:"end"`
 	Port      uint16 `json:"-"`
+
+	// Only TCP and UDP
+	SourceEndPort   uint16 `json:"source_end"`
+	SourcePort      uint16 `json:"source_port"`
+	SourceStartPort uint16 `json:"source_start"`
+
+	// TODO:
+	// --tcp-flags (SYN, ACK etc.) also prefix with !
+	// --tcp-option option:<value> also prefix with !
+	// --icmp-type (echo-reply, echo-request etc.) also prefix with !
+	// --mac-source (mac) also prefix with !
+	Flags                []string `json:"flags"`
+	SourceInterface      string   `json:"source_interface"`
+	DestinationInterface string   `json:"destination_interface"`
 }
 
 func normalizeValue(what, v, def string, validValues map[string]bool) (normalized string, err error) {
@@ -72,6 +86,21 @@ func (r *Rule) Validate() (err error) {
 		return
 	}
 
+	// Deduplicate and validate flags
+	collectedFlagsMap := map[string]bool{}
+	newFlags := []string{}
+	for _, flag := range r.Flags {
+		if _, ok := collectedFlagsMap[flag]; !ok {
+			collectedFlagsMap[flag] = true
+			newFlags = append(newFlags, flag)
+		}
+	}
+	r.Flags = newFlags
+
+	if err = r.validateFlags(); err != nil {
+		return
+	}
+
 	// Validate IP
 	var cidr *net.IPNet
 	if _, cidr, err = net.ParseCIDR(r.CIDR); err != nil {
@@ -84,11 +113,17 @@ func (r *Rule) Validate() (err error) {
 		return
 	}
 
-	if (r.StartPort == r.EndPort) || (r.StartPort != 0 && r.EndPort == 0) {
-		r.Port = r.StartPort
-	} else if r.StartPort > r.EndPort {
-		err = fmt.Errorf("port range end cannot be smaller than start (start=%d, end=%d)", r.StartPort, r.EndPort)
-		return
+	if r.ProtocolName() == "icmp" {
+		r.StartPort = 0
+		r.EndPort = 0
+		r.Port = 0
+	} else {
+		if (r.StartPort == r.EndPort) || (r.StartPort != 0 && r.EndPort == 0) {
+			r.Port = r.StartPort
+		} else if r.StartPort > r.EndPort {
+			err = fmt.Errorf("port range end cannot be smaller than start (start=%d, end=%d)", r.StartPort, r.EndPort)
+			return
+		}
 	}
 
 	return
@@ -140,6 +175,7 @@ func (r *Rule) ToRulespec() (s []string, err error) {
 
 	s = append(s, "-j", target)
 
+	// mimic what iptables is doing
 	if target == "REJECT" {
 		if r.IsV6() {
 			s = append(s, "--reject-with", "icmp6-port-unreachable")

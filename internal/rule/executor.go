@@ -25,6 +25,7 @@ func (s *ShellScriptGenerator) Reset() {
 }
 
 func (s *ShellScriptGenerator) Executor() chain.Executor {
+	// TODO: group support
 	return func(ctx context.Context, command ...string) error {
 		hasCheck := len(s.stack) > 1
 		self := chain.Self(ctx)
