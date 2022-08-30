@@ -2,6 +2,7 @@ package cmdchain
 
 import (
 	"context"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -37,7 +38,6 @@ func (s *ShellScriptGenerator) Executor() Executor {
 		}
 
 		if hasCheck {
-			//s.stack = append(s.stack, "2>&-")
 			s.stack = append(s.stack, "&&")
 		}
 
@@ -45,6 +45,14 @@ func (s *ShellScriptGenerator) Executor() Executor {
 			command[i] = strconv.Quote(e)
 		}
 		s.stack = append(s.stack, strings.Join(command, " "))
+
+		stdout, stderr := InputOutput(ctx)
+		if stdout == io.Discard {
+			s.stack = append(s.stack, "1>&-")
+		}
+		if stderr == io.Discard {
+			s.stack = append(s.stack, "2>&-")
+		}
 
 		if parent == nil {
 			if hasCheck {
