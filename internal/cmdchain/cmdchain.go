@@ -13,6 +13,7 @@ type ChainChildFunc func(CommandChain) CommandChain
 
 type CommandChain interface {
 	Name() string
+	Context() context.Context
 	WithName(name string) CommandChain
 	WithEnableChecks(enable bool) CommandChain
 	WithNegated(negated bool) CommandChain
@@ -55,6 +56,10 @@ type cmdChain struct {
 
 func (c *cmdChain) Name() string {
 	return c.name
+}
+
+func (c *cmdChain) Context() context.Context {
+	return c.ctx
 }
 
 func (c *cmdChain) WithName(name string) CommandChain {

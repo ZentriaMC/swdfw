@@ -56,18 +56,19 @@ func (c *ChainManagerIPTables) runAllProtocols(ctx context.Context, table, actio
 
 func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table string, chainName string) (err error) {
 	for proto := range c.protocols {
-		rerr := cmdchain.NewCommandChain(ctx, c.prog(proto)).
+		cch := cmdchain.NewCommandChain(ctx, c.prog(proto)).
 			WithExecutor(c.executor).
-			WithEnableChecks(c.executeChecks).
-			WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-				return cc.WithErrInterceptor(IPTablesIsErrNotExist(false)).
-					WithOutput(io.Discard, nil).
-					WithNegated(true).
-					Args(c.cmdChainExists(proto, table, chainName)...)
-			}).
-			Args(c.cmdCreateChain(proto, table, chainName)...).
-			Run()
+			WithEnableChecks(c.executeChecks && !c.nftWorkaround)
 
+		if c.nftWorkaround {
+			cch = cch.WithErrInterceptor(IPTablesIsErrNotExist(false))
+		} else {
+			cch = cch.WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+				return c.checkChainExists(cc, proto, table, chainName, false)
+			})
+		}
+
+		rerr := cch.Args(c.cmdCreateChain(proto, table, chainName)...).Run()
 		err = multierr.Append(err, rerr)
 	}
 	return
@@ -110,4 +111,12 @@ func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempNa
 	}
 
 	return
+}
+
+func (c *ChainManagerIPTables) checkChainExists(cc cmdchain.CommandChain, proto rule.Protocol, table, chainName string, short bool) cmdchain.CommandChain {
+	return cc.
+		WithErrInterceptor(IPTablesIsErrNotExist(short)).
+		WithOutput(io.Discard, nil).
+		WithNegated(true).
+		Args(c.cmdChainExists(proto, table, chainName)...)
 }

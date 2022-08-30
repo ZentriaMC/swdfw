@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"go.uber.org/multierr"
@@ -18,6 +17,7 @@ type ChainManagerIPTables struct {
 	iptablesPath       string
 	ip6tablesPath      string
 	verifyIptablesPath bool
+	nftWorkaround      bool
 }
 
 func newChainManagerIPTables(base *chainManagerBase) (c *ChainManagerIPTables) {
@@ -26,6 +26,7 @@ func newChainManagerIPTables(base *chainManagerBase) (c *ChainManagerIPTables) {
 		iptablesPath:       "iptables",
 		ip6tablesPath:      "ip6tables",
 		verifyIptablesPath: false,
+		nftWorkaround:      false,
 	}
 	return
 }
@@ -82,28 +83,30 @@ func (c *ChainManagerIPTables) InstallBaseChain(ctx context.Context, name, paren
 
 func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (err error) {
 	for proto := range c.protocols {
-		rerr := cmdchain.NewCommandChain(ctx, "chain-delete").
+		cch := cmdchain.NewCommandChain(ctx, "chain-delete").
 			WithExecutor(c.executor).
-			WithEnableChecks(c.executeChecks).
-			WithCheck("chain-exists", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+			WithEnableChecks(c.executeChecks)
+
+		if c.nftWorkaround {
+			cch = cch.WithErrInterceptor(IPTablesIsErrNotExist(false))
+		} else {
+			cch = cch.WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+				return c.checkChainExists(cc, proto, "filter", name, true)
+			})
+		}
+
+		rerr := cch.ArgsGroup(
+			func(cc cmdchain.CommandChain) cmdchain.CommandChain {
 				return cc.
-					WithOutput(io.Discard, nil).
-					WithErrInterceptor(IPTablesIsErrNotExist(true)).
-					Args(c.cmdChainExists(proto, "filter", name)...)
-			}).
-			ArgsGroup(
-				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-					return cc.
-						WithName("flush-chain").
-						Args(c.iptables(proto, "filter", "-F", name)...)
-				},
-				func(cc cmdchain.CommandChain) cmdchain.CommandChain {
-					return cc.
-						WithName("delete-chain").
-						Args(c.iptables(proto, "filter", "-X", name)...)
-				},
-			).
-			Run()
+					WithName("flush-chain").
+					Args(c.iptables(proto, "filter", "-F", name)...)
+			},
+			func(cc cmdchain.CommandChain) cmdchain.CommandChain {
+				return cc.
+					WithName("delete-chain").
+					Args(c.iptables(proto, "filter", "-X", name)...)
+			},
+		).Run()
 		err = multierr.Append(err, rerr)
 	}
 	return

@@ -58,6 +58,10 @@ var (
 
 			cmd := []string{"/bin/sh", "-xc", strings.Join(command, " ")}
 			exitCode, err = dockerResources["iptables"].Exec(cmd, execOpts)
+			if err != nil {
+				fmt.Println("failed to exec:", err)
+				return
+			}
 
 			fmt.Println(strings.TrimRight(stderr.String(), "\n"))
 			if stdout.Len() > 0 {
@@ -151,7 +155,7 @@ runTests:
 	return
 }
 
-func TestChainDocker(t *testing.T) {
+func TestChainDockerIPTablesLegacy(t *testing.T) {
 	if !hasDocker {
 		t.SkipNow()
 	}
@@ -253,6 +257,116 @@ func TestChainDocker(t *testing.T) {
 	}
 
 	err = c.ConfigureChain(ctx, "basicrules-output", baseOutput, "", outputRules)
+	if err != nil {
+		t.Fatalf("failed to replace chain: %s", err)
+	}
+}
+
+func TestChainDockerIPTablesNft(t *testing.T) {
+	if !hasDocker {
+		t.SkipNow()
+	}
+
+	c, err := chain.NewChainManager(
+		chain.WithCustomExecutor(dockerExecutor),
+		chain.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
+		chain.VerifyIPTablesPath(false),
+		chain.IPTablesPath("iptables-nft"),
+		chain.IP6TablesPath("ip6tables-nft"),
+		chain.EnableNFTWorkaround(true),
+	)
+	if err != nil {
+		t.Fatalf("failed to initialize chainmanager: %s", err)
+	}
+
+	defer func() {
+		cerr := c.Close()
+		if cerr != nil {
+			t.Logf("failed to close chainmanager: %s", cerr)
+		}
+	}()
+	inputRules := []rule.Rule{
+		{
+			Direction: "input",
+			Protocol:  "tcp",
+			CIDR:      "10.123.0.1/24",
+			Port:      22,
+			Action:    "allow",
+		},
+		{
+			Direction: "input",
+			Protocol:  "tcp",
+			CIDR:      "0.0.0.0/0",
+			Action:    "allow",
+			StartPort: 1024,
+			EndPort:   4096,
+		},
+		{
+			Direction: "input",
+			Protocol:  "tcpv6",
+			CIDR:      "::/0",
+			Action:    "allow",
+			StartPort: 1024,
+			EndPort:   4096,
+		},
+		{
+			Direction: "input",
+			Protocol:  "tcp",
+			CIDR:      "0.0.0.0/0",
+			Action:    "block",
+		},
+		{
+			Direction: "input",
+			Protocol:  "tcpv6",
+			CIDR:      "::/0",
+			Action:    "block",
+		},
+	}
+
+	outputRules := []rule.Rule{}
+
+	ctx := context.Background()
+
+	defer func() {
+		var collectedRules bytes.Buffer
+		_, err := dockerResources["iptables"].Exec([]string{"/bin/sh", "-c", "iptables-nft-save && ip6tables-nft-save"}, dockertest.ExecOptions{
+			StdOut: &collectedRules,
+		})
+		if err != nil {
+			t.Fatalf("failed to get rules: %s", err)
+		}
+
+		fmt.Println(strings.TrimRight(collectedRules.String(), "\n"))
+	}()
+
+	baseInput := "SWDFWNFT-INPUT"
+	baseOutput := "SWDFWNFT-OUTPUT"
+	err = c.InstallBaseChain(ctx, baseInput, "INPUT")
+	if err != nil {
+		t.Fatalf("failed to install base input chain: %s", err)
+	}
+
+	err = c.InstallBaseChain(ctx, baseOutput, "OUTPUT")
+	if err != nil {
+		t.Fatalf("failed to install base output chain: %s", err)
+	}
+
+	err = c.ConfigureChain(ctx, "basicrulesnft-input", baseInput, "", inputRules)
+	if err != nil {
+		t.Fatalf("failed to replace chain: %s", err)
+	}
+
+	err = c.ConfigureChain(ctx, "basicrulesnft-input", baseInput, "", inputRules)
+	if err != nil {
+		t.Fatalf("failed to replace chain: %s", err)
+	}
+
+	err = c.ConfigureChain(ctx, "basicrulesnft-output", baseOutput, "", outputRules)
+	if err != nil {
+		t.Fatalf("failed to replace chain: %s", err)
+	}
+
+	err = c.ConfigureChain(ctx, "basicrulesnft-output", baseOutput, "", outputRules)
 	if err != nil {
 		t.Fatalf("failed to replace chain: %s", err)
 	}
