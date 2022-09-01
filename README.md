@@ -47,6 +47,8 @@ With swdfw, applying a new set of rules is as fast as machine can swap out the r
 - [ ] Output rules
 - [ ] Rules covering all protocols or only handling interfaces
 - [ ] Rules declaration (file format/structure)
+- [ ] Try to retain script generation support
+    - [ ] Works fine-ish with iptables already, but nftables might be a problem.
 - [ ] Tunables
     - [ ] Default INPUT/OUTPUT policy handling
     - [ ] DROP instead of REJECT
@@ -54,11 +56,14 @@ With swdfw, applying a new set of rules is as fast as machine can swap out the r
     - [ ] Collecting rules targeting different CIDRs with same ports into [ipset][ipset]
 - [ ] [ipset][ipset] support
 - [ ] [nftables][nftables] support
+    - [ ] Could utilize [JSON input/output][redhat-nftables-json] support
 
 ## Known issues
 
 - [ ] Limits are not documented
-    - iptables chain name length is strictly 29. Current update logic needs reserving 6 characters (could do less).
+    - iptables chain name length is strictly 28. Current update logic needs reserving 6 characters (could do less).
+    - nftables allows for longer, tested with 70 character name.
+    - Therefore allow only 16-24 character names for rulesets?
 
 ## License
 
@@ -68,3 +73,4 @@ Not determined yet.
 [iptables-extensions-multiport]: https://ipset.netfilter.org/iptables-extensions.man.html#lbBM
 [ipset]: https://ipset.netfilter.org/ipset.man.html
 [nftables]: https://wiki.nftables.org/wiki-nftables/index.php/Main_Page
+[redhat-nftables-json]: https://web.archive.org/web/20211026094902/https://workshop.netfilter.org/2019/wiki/images/c/c6/NFWS_2019_-_firewalld%2C_libnftables%2C_and_json%2C_oh_my.pdf
