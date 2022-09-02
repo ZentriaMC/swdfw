@@ -25,6 +25,7 @@ func NewChainManager(opts ...ChainManagerOpt) (c ChainManager, err error) {
 			rule.ProtocolIPv4: true,
 			rule.ProtocolIPv6: true,
 		},
+		quirks: map[Quirk]bool{},
 	})
 
 	for _, opt := range opts {
@@ -72,6 +73,7 @@ type chainManagerBase struct {
 	executor      cmdchain.Executor
 	executeChecks bool
 	protocols     map[rule.Protocol]bool
+	quirks        map[Quirk]bool
 }
 
 type chainManagerBaseGetter interface {

@@ -67,9 +67,9 @@ func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table
 	for proto := range c.protocols {
 		cch := cmdchain.NewCommandChain(ctx, c.prog(proto)).
 			WithExecutor(c.executor).
-			WithEnableChecks(c.executeChecks && !c.nftWorkaround)
+			WithEnableChecks(c.executeChecks)
 
-		if c.nftWorkaround {
+		if _, ok := c.quirks[QuirkIPTablesBrokenChainCheck]; ok {
 			cch = cch.WithErrInterceptor(IPTablesIsErrNotExist(false))
 		} else {
 			cch = cch.WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {

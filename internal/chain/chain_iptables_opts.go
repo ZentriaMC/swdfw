@@ -34,14 +34,3 @@ func IP6TablesPath(path string) ChainManagerOpt {
 		c.ip6tablesPath = path
 	}
 }
-
-func EnableNFTWorkaround(enabele bool) ChainManagerOpt {
-	return func(cm ChainManager) {
-		c, ok := cm.(*ChainManagerIPTables)
-		if !ok {
-			panic(fmt.Errorf("EnableNFTWorkaround is valid only with iptables chain manager"))
-		}
-
-		c.nftWorkaround = true
-	}
-}

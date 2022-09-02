@@ -17,7 +17,6 @@ type ChainManagerIPTables struct {
 	iptablesPath       string
 	ip6tablesPath      string
 	verifyIptablesPath bool
-	nftWorkaround      bool
 }
 
 func newChainManagerIPTables(base *chainManagerBase) (c *ChainManagerIPTables) {
@@ -26,7 +25,6 @@ func newChainManagerIPTables(base *chainManagerBase) (c *ChainManagerIPTables) {
 		iptablesPath:       "iptables",
 		ip6tablesPath:      "ip6tables",
 		verifyIptablesPath: false,
-		nftWorkaround:      false,
 	}
 	return
 }
@@ -100,7 +98,7 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) (er
 			WithExecutor(c.executor).
 			WithEnableChecks(c.executeChecks)
 
-		if c.nftWorkaround {
+		if _, ok := c.quirks[QuirkIPTablesBrokenChainCheck]; ok {
 			cch = cch.WithErrInterceptor(IPTablesIsErrNotExist(false))
 		} else {
 			cch = cch.WithCheck("chain-check", func(cc cmdchain.CommandChain) cmdchain.CommandChain {

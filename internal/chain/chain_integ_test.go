@@ -269,7 +269,7 @@ func TestChainDockerIPTablesNft(t *testing.T) {
 		chain.VerifyIPTablesPath(false),
 		chain.IPTablesPath("iptables-nft"),
 		chain.IP6TablesPath("ip6tables-nft"),
-		chain.EnableNFTWorkaround(true),
+		chain.Quirks(chain.QuirkIPTablesBrokenChainCheck),
 	)
 	if err != nil {
 		t.Fatalf("failed to initialize chainmanager: %s", err)
