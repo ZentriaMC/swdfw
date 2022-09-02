@@ -3,8 +3,9 @@ package cmdchain
 import (
 	"context"
 	"io"
-	"strconv"
 	"strings"
+
+	"github.com/alessio/shellescape"
 )
 
 type ShellScriptGenerator struct {
@@ -41,10 +42,7 @@ func (s *ShellScriptGenerator) Executor() Executor {
 			s.stack = append(s.stack, "&&")
 		}
 
-		for i, e := range command {
-			command[i] = strconv.Quote(e)
-		}
-		s.stack = append(s.stack, strings.Join(command, " "))
+		s.stack = append(s.stack, shellescape.QuoteCommand(command))
 
 		stdout, stderr := InputOutput(ctx)
 		if stdout == io.Discard {

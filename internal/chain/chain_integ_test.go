@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/alessio/shellescape"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"go.uber.org/zap"
@@ -43,10 +43,6 @@ var (
 			stdout.Reset()
 			stderr.Reset()
 
-			for i, e := range command {
-				command[i] = strconv.Quote(e)
-			}
-
 			var execOpts dockertest.ExecOptions
 			execOpts.StdOut, execOpts.StdErr = cmdchain.InputOutput(ctx)
 			if execOpts.StdOut == nil {
@@ -56,7 +52,7 @@ var (
 				execOpts.StdErr = &stderr
 			}
 
-			cmd := []string{"/bin/sh", "-xc", strings.Join(command, " ")}
+			cmd := []string{"/bin/sh", "-xc", shellescape.QuoteCommand(command)}
 			exitCode, err = dockerResources["iptables"].Exec(cmd, execOpts)
 			if err != nil {
 				fmt.Println("failed to exec:", err)

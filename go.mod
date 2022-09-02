@@ -3,6 +3,7 @@ module github.com/ZentriaMC/swdfw
 go 1.18
 
 require (
+	github.com/alessio/shellescape v1.4.2-0.20220327101325-f4f7e0a80372
 	github.com/ory/dockertest/v3 v3.9.1
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.23.0
