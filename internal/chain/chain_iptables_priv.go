@@ -12,6 +12,15 @@ import (
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
 
+func (c *ChainManagerIPTables) chainLength(name string, mod int) (err error) {
+	const nameLimit = 24
+
+	if l := len(name); l > (nameLimit + mod) {
+		err = fmt.Errorf("chain name '%s' too long (%d > %d)", name, l, nameLimit+mod)
+	}
+	return
+}
+
 func (c *ChainManagerIPTables) prog(proto rule.Protocol) (progName string) {
 	if proto == rule.ProtocolIPv4 {
 		progName = c.iptablesPath

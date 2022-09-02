@@ -37,7 +37,16 @@ func (c *ChainManagerIPTables) init() (err error) {
 }
 
 func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) (err error) {
+	if err = c.chainLength(name, 0); err != nil {
+		return
+	}
+
 	tempName := fmt.Sprintf("%s:%d", name, time.Now().Unix()&0xFFFF)
+	// Allow for n+6 here because temporary chain will contain unique suffix
+	if err = c.chainLength(tempName, 6); err != nil {
+		return
+	}
+
 	if err = c.createChain(ctx, name, tempName, jumpTo, rules); err != nil {
 		return
 	}
@@ -58,6 +67,10 @@ func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentC
 }
 
 func (c *ChainManagerIPTables) InstallBaseChain(ctx context.Context, name, parentChain string) (err error) {
+	if err = c.chainLength(name, 0); err != nil {
+		return
+	}
+
 	if err = c.createChainIfNotExists(ctx, "filter", name); err != nil {
 		return
 	}
