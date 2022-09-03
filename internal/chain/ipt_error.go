@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	msgNoRuleExist  = "Bad rule (does a matching rule exist in that chain?).\n"
-	msgNoChainExist = "No chain/target/match by that name.\n"
-	msgChainExist   = "Chain already exists.\n"
+	msgIPTNoRuleExist  = "Bad rule (does a matching rule exist in that chain?).\n"
+	msgIPTNoChainExist = "No chain/target/match by that name.\n"
+	msgIPTChainExist   = "Chain already exists.\n"
 )
 
 // This interceptor checks if iptables reported missing rule/chain and passes
@@ -21,7 +21,7 @@ var IPTablesIsErrNotExist = func(short bool) cmdchain.ErrInterceptor {
 			return err
 		}
 
-		if !strings.Contains(cmdErr.Stderr(), msgNoRuleExist) && !strings.Contains(cmdErr.Stderr(), msgNoChainExist) {
+		if !strings.Contains(cmdErr.Stderr(), msgIPTNoRuleExist) && !strings.Contains(cmdErr.Stderr(), msgIPTNoChainExist) {
 			return err
 		}
 
@@ -39,7 +39,7 @@ var IPTablesIsErrAlreadyExist = func(short bool) cmdchain.ErrInterceptor {
 			return err
 		}
 
-		if !strings.Contains(cmdErr.Stderr(), msgChainExist) {
+		if !strings.Contains(cmdErr.Stderr(), msgIPTChainExist) {
 			return err
 		}
 
