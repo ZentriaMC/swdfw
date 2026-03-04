@@ -8,7 +8,8 @@ import (
 
 func (r *Rule) validateFlags() (err error) {
 	proto := r.Protocol
-	validFlags := []map[string]bool{validICMPTypes, validStates}
+	validFlags := []map[string]bool{validStates}
+	var validICMP map[string]uint8
 
 	switch proto {
 	case "tcp", "tcpv6":
@@ -16,15 +17,16 @@ func (r *Rule) validateFlags() (err error) {
 	case "udp", "udpv6":
 		// no-op
 	case "icmp":
-		validFlags = append(validFlags, validICMPTypes)
+		validICMP = validICMPTypes
 	case "icmpv6":
-		validFlags = append(validFlags, validICMPV6Types)
+		validICMP = validICMPV6Types
 	}
 
 	hasTCPOpt := false
+	hasICMPType := false
 	for _, flag := range r.Flags {
 		flagLower := strings.ToLower(flag)
-		if !containsFlag(validFlags, flagLower) {
+		if !containsFlag(validFlags, flagLower) && !containsFlagU8(validICMP, flagLower) {
 			err = fmt.Errorf("unsupported flag '%s' for protocol %s", flag, proto)
 			return
 		}
@@ -35,6 +37,14 @@ func (r *Rule) validateFlags() (err error) {
 				return
 			}
 			hasTCPOpt = true
+		}
+
+		if strings.HasPrefix(flagLower, icmpPrefix) || strings.HasPrefix(flagLower, icmpv6Prefix) {
+			if hasICMPType {
+				err = errors.New("cannot specify multiple icmp types in a single rule")
+				return
+			}
+			hasICMPType = true
 		}
 	}
 
@@ -48,5 +58,13 @@ func containsFlag(flagsList []map[string]bool, flag string) (ok bool) {
 		}
 	}
 
+	return
+}
+
+func containsFlagU8(flagSet map[string]uint8, flag string) (ok bool) {
+	if flagSet == nil {
+		return
+	}
+	_, ok = flagSet[flag]
 	return
 }

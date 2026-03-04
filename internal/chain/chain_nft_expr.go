@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
@@ -49,6 +50,17 @@ func ruleToExprs(r rule.Rule) ([]expr.Any, error) {
 	if protoName == "tcp" || protoName == "udp" {
 		exprs = append(exprs, dstPortExprs(r.Port, r.StartPort, r.EndPort)...)
 		exprs = append(exprs, srcPortExprs(r.SourcePort, r.SourceStartPort, r.SourceEndPort)...)
+	}
+
+	// Match ICMP type.
+	if protoName == "icmp" {
+		typeCodes := rule.ICMPTypeCodes()
+		if r.IsV6() {
+			typeCodes = rule.ICMPV6TypeCodes()
+		}
+		if icmpExprs := icmpTypeExprs(r.Flags, typeCodes); icmpExprs != nil {
+			exprs = append(exprs, icmpExprs...)
+		}
 	}
 
 	// Match interfaces.
@@ -208,6 +220,30 @@ func verdictExpr(action string) (expr.Any, error) {
 	default:
 		return nil, fmt.Errorf("unsupported action: %s", action)
 	}
+}
+
+// icmpTypeExprs scans flags for an ICMP type prefix and returns payload+cmp
+// expressions matching the ICMP type byte at transport header offset 0.
+func icmpTypeExprs(flags []string, typeCodes map[string]uint8) []expr.Any {
+	for _, flag := range flags {
+		flagLower := strings.ToLower(flag)
+		if code, ok := typeCodes[flagLower]; ok {
+			return []expr.Any{
+				&expr.Payload{
+					DestRegister: 1,
+					Base:         expr.PayloadBaseTransportHeader,
+					Offset:       0,
+					Len:          1,
+				},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{code},
+				},
+			}
+		}
+	}
+	return nil
 }
 
 func uint16Bytes(v uint16) []byte {

@@ -477,6 +477,56 @@ func TestNFTablesGoto(t *testing.T) {
 	}
 }
 
+func TestRuleToExprsICMPType(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     "0.0.0.0/0",
+		Action:   "allow",
+		Flags:    []string{"icmp:echo-request"},
+	}
+
+	exprs, err := ruleToExprs(r)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	// Find a Payload expression at transport header offset 0 with Len 1
+	// followed by a Cmp with ICMP type code 8 (echo-request).
+	foundPayload := false
+	foundCmp := false
+	for i, e := range exprs {
+		p, ok := e.(*expr.Payload)
+		if !ok {
+			continue
+		}
+		if p.Base != expr.PayloadBaseTransportHeader || p.Offset != 0 || p.Len != 1 {
+			continue
+		}
+		foundPayload = true
+		// Next expression should be the Cmp
+		if i+1 < len(exprs) {
+			if c, ok := exprs[i+1].(*expr.Cmp); ok {
+				if c.Op == expr.CmpOpEq && len(c.Data) == 1 && c.Data[0] == 8 {
+					foundCmp = true
+				}
+			}
+		}
+	}
+	if !foundPayload {
+		t.Fatal("expected Payload expression for ICMP type at transport header offset 0")
+	}
+	if !foundCmp {
+		t.Fatal("expected Cmp expression with ICMP type code 8 (echo-request)")
+	}
+
+	// Last expression should still be Accept verdict
+	last := exprs[len(exprs)-1]
+	v, ok := last.(*expr.Verdict)
+	if !ok || v.Kind != expr.VerdictAccept {
+		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
+	}
+}
+
 func TestNFTablesCustomTable(t *testing.T) {
 	conn := nftTestConn(t)
 	ctx := context.Background()

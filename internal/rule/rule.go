@@ -162,6 +162,24 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 		s = append(s, "--dport", fmt.Sprintf("%d:%d", r.StartPort, r.EndPort))
 	}
 
+	// ICMP type matching.
+	switch r.ProtocolName() {
+	case "icmp":
+		for _, flag := range r.Flags {
+			flagLower := strings.ToLower(flag)
+			if strings.HasPrefix(flagLower, icmpPrefix) {
+				s = append(s, "--icmp-type", strings.TrimPrefix(flagLower, icmpPrefix))
+			}
+		}
+	case "icmpv6":
+		for _, flag := range r.Flags {
+			flagLower := strings.ToLower(flag)
+			if strings.HasPrefix(flagLower, icmpv6Prefix) {
+				s = append(s, "--icmpv6-type", strings.TrimPrefix(flagLower, icmpv6Prefix))
+			}
+		}
+	}
+
 	var target string
 	switch r.Action {
 	case "allow":

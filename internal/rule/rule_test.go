@@ -100,3 +100,61 @@ func TestRulesWithFlags(t *testing.T) {
 		t.Error("expected icmp rule containing tcp flags to be invalid")
 	}
 }
+
+func TestICMPTypeFlags(t *testing.T) {
+	// Valid ICMP rule with icmp:echo-request
+	validICMP := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     "0.0.0.0/0",
+		Action:   "allow",
+		Flags:    []string{"icmp:echo-request"},
+	}
+	if err := validICMP.Validate(); err != nil {
+		t.Errorf("expected icmp rule with echo-request to be valid: %v", err)
+	}
+
+	// Valid ICMPv6 rule with icmpv6:echo-request
+	validICMPv6 := rule.Rule{
+		Protocol: "icmpv6",
+		CIDR:     "::/0",
+		Action:   "allow",
+		Flags:    []string{"icmpv6:echo-request"},
+	}
+	if err := validICMPv6.Validate(); err != nil {
+		t.Errorf("expected icmpv6 rule with echo-request to be valid: %v", err)
+	}
+
+	// ICMP type on TCP rule → error
+	icmpOnTCP := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     "0.0.0.0/0",
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"icmp:echo-request"},
+	}
+	if err := icmpOnTCP.Validate(); err == nil {
+		t.Error("expected icmp type flag on tcp rule to be invalid")
+	}
+
+	// Unknown ICMP type → error
+	unknownType := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     "0.0.0.0/0",
+		Action:   "allow",
+		Flags:    []string{"icmp:nonexistent"},
+	}
+	if err := unknownType.Validate(); err == nil {
+		t.Error("expected unknown icmp type to be invalid")
+	}
+
+	// Multiple ICMP types → error
+	multiType := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     "0.0.0.0/0",
+		Action:   "allow",
+		Flags:    []string{"icmp:echo-request", "icmp:echo-reply"},
+	}
+	if err := multiType.Validate(); err == nil {
+		t.Error("expected multiple icmp types to be invalid")
+	}
+}
