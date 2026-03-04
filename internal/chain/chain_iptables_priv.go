@@ -114,6 +114,20 @@ func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table
 }
 
 func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempName, jumpTo string, rules []rule.Rule) (err error) {
+	// Validate that referenced sets exist and family matches.
+	for _, r := range rules {
+		if r.SourceSet == "" {
+			continue
+		}
+		si, ok := c.sets[r.SourceSet]
+		if !ok {
+			return fmt.Errorf("rule references unknown set %q", r.SourceSet)
+		}
+		if si.v6 != r.IsV6() {
+			return fmt.Errorf("set %q family mismatch: set is v6=%v but rule is v6=%v", r.SourceSet, si.v6, r.IsV6())
+		}
+	}
+
 	if err = c.createChainIfNotExists(ctx, "filter", tempName); err != nil {
 		return fmt.Errorf("failed to create a firewall chain: %w", err)
 	}

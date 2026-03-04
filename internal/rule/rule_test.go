@@ -101,6 +101,34 @@ func TestRulesWithFlags(t *testing.T) {
 	}
 }
 
+func TestSourceSetRulespec(t *testing.T) {
+	r := rule.Rule{
+		Protocol:  "tcp",
+		CIDR:      "0.0.0.0/0",
+		Port:      80,
+		Action:    "allow",
+		SourceSet: "trusted-ips",
+	}
+
+	spec, err := r.ToRulespec("testchain")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+
+	joined := strings.Join(spec, " ")
+	expected := "-m set --match-set trusted-ips src"
+	if !strings.Contains(joined, expected) {
+		t.Fatalf("expected rulespec to contain %q, got: %s", expected, joined)
+	}
+
+	// Verify it appears before the verdict (-j)
+	setIdx := strings.Index(joined, "-m set")
+	jIdx := strings.Index(joined, "-j")
+	if setIdx > jIdx {
+		t.Fatalf("expected set match before verdict, set at %d, -j at %d", setIdx, jIdx)
+	}
+}
+
 func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMP rule with icmp:echo-request
 	validICMP := rule.Rule{

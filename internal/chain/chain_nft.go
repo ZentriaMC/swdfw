@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/nftables"
+	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 
 	"github.com/ZentriaMC/swdfw/internal/rule"
@@ -24,6 +25,11 @@ type chainState struct {
 	jumpTo      string
 }
 
+type setDef struct {
+	cidrs []string
+	v6    bool
+}
+
 type ChainManagerNFTables struct {
 	*chainManagerBase
 
@@ -33,6 +39,7 @@ type ChainManagerNFTables struct {
 	baseChains map[string]Hook
 	chains     map[string]chainState
 	chainOrder []string
+	sets       map[string]setDef
 }
 
 // NewNFTablesManager creates a ChainManager backed by nftables via netlink.
@@ -48,6 +55,7 @@ func NewNFTablesManager(opts ...ChainManagerOpt) (ChainManager, error) {
 		tableName:  "swdfw",
 		baseChains: make(map[string]Hook),
 		chains:     make(map[string]chainState),
+		sets:       make(map[string]setDef),
 	}
 
 	for _, opt := range opts {
@@ -104,6 +112,23 @@ func (c *ChainManagerNFTables) Close() error {
 	return nil
 }
 
+func (c *ChainManagerNFTables) ConfigureSet(_ context.Context, name string, cidrs []string) error {
+	if len(cidrs) == 0 {
+		return fmt.Errorf("set %q: at least one CIDR required", name)
+	}
+	v6, err := parseCIDRsFamily(cidrs)
+	if err != nil {
+		return fmt.Errorf("set %q: %w", name, err)
+	}
+	c.sets[name] = setDef{cidrs: cidrs, v6: v6}
+	return c.apply()
+}
+
+func (c *ChainManagerNFTables) DeleteSet(_ context.Context, name string) error {
+	delete(c.sets, name)
+	return c.apply()
+}
+
 func (c *ChainManagerNFTables) apply() error {
 	table := &nftables.Table{
 		Family: nftables.TableFamilyINet,
@@ -116,6 +141,29 @@ func (c *ChainManagerNFTables) apply() error {
 	c.conn.AddTable(table)
 	c.conn.DelTable(table)
 	table = c.conn.AddTable(table)
+
+	// Create named sets before chains.
+	setObjs := make(map[string]*nftables.Set)
+	for name, sd := range c.sets {
+		keyType, _ := setKeyType(sd.v6)
+		s := &nftables.Set{
+			Table:        table,
+			Name:         name,
+			Interval:     true,
+			KeyType:      keyType,
+			KeyByteOrder: binaryutil.BigEndian,
+		}
+
+		elements, err := cidrsToSetElements(sd.cidrs, sd.v6)
+		if err != nil {
+			return fmt.Errorf("set %q: %w", name, err)
+		}
+
+		if err := c.conn.AddSet(s, elements); err != nil {
+			return fmt.Errorf("set %q: AddSet failed: %w", name, err)
+		}
+		setObjs[name] = s
+	}
 
 	chainObjs := make(map[string]*nftables.Chain)
 
@@ -154,7 +202,15 @@ func (c *ChainManagerNFTables) apply() error {
 				continue
 			}
 
-			exprs, err := ruleToExprs(r)
+			var sourceSet *nftables.Set
+			if r.SourceSet != "" {
+				sourceSet = setObjs[r.SourceSet]
+				if sourceSet == nil {
+					return fmt.Errorf("rule in chain %q references unknown set %q", name, r.SourceSet)
+				}
+			}
+
+			exprs, err := ruleToExprs(r, sourceSet)
 			if err != nil {
 				return fmt.Errorf("rule conversion failed for chain %q: %w", name, err)
 			}

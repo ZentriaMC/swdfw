@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
 
@@ -21,7 +22,9 @@ const (
 )
 
 // ruleToExprs converts a rule.Rule into a slice of nftables expressions.
-func ruleToExprs(r rule.Rule) ([]expr.Any, error) {
+// If sourceSet is non-nil, a Lookup expression is emitted to match the source
+// address against the named set.
+func ruleToExprs(r rule.Rule, sourceSet *nftables.Set) ([]expr.Any, error) {
 	var exprs []expr.Any
 
 	// Match network protocol family (IPv4 vs IPv6) in inet table.
@@ -40,6 +43,31 @@ func ruleToExprs(r rule.Rule) ([]expr.Any, error) {
 		return nil, err
 	}
 	exprs = append(exprs, cidrExprs...)
+
+	// Match source set (if configured).
+	if sourceSet != nil {
+		var addrOffset, addrLen uint32
+		if r.IsV6() {
+			addrOffset = 8
+			addrLen = 16
+		} else {
+			addrOffset = 12
+			addrLen = 4
+		}
+		exprs = append(exprs,
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       addrOffset,
+				Len:          addrLen,
+			},
+			&expr.Lookup{
+				SourceRegister: 1,
+				SetName:        sourceSet.Name,
+				SetID:          sourceSet.ID,
+			},
+		)
+	}
 
 	// Match L4 protocol.
 	protoName := r.ProtocolName()

@@ -3,12 +3,17 @@ package chain
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	"go.uber.org/multierr"
 
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
+
+type setInfo struct {
+	v6 bool
+}
 
 var hookToIPTablesChain = map[Hook]string{
 	HookInput:   "INPUT",
@@ -22,6 +27,7 @@ type ChainManagerIPTables struct {
 	iptablesPath       string
 	ip6tablesPath      string
 	verifyIptablesPath bool
+	sets               map[string]setInfo
 }
 
 func newChainManagerIPTables(base *chainManagerBase) *ChainManagerIPTables {
@@ -30,6 +36,7 @@ func newChainManagerIPTables(base *chainManagerBase) *ChainManagerIPTables {
 		iptablesPath:       "iptables",
 		ip6tablesPath:      "ip6tables",
 		verifyIptablesPath: false,
+		sets:               make(map[string]setInfo),
 	}
 }
 
@@ -138,5 +145,59 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) err
 }
 
 func (c *ChainManagerIPTables) Close() error {
+	return nil
+}
+
+func (c *ChainManagerIPTables) ConfigureSet(ctx context.Context, name string, cidrs []string) error {
+	if len(name) > 31 {
+		return fmt.Errorf("ipset name %q too long (%d > 31)", name, len(name))
+	}
+	if len(cidrs) == 0 {
+		return fmt.Errorf("set %q: at least one CIDR required", name)
+	}
+
+	// Determine family from CIDRs — all must be the same.
+	var v6 bool
+	for i, cidr := range cidrs {
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("set %q: invalid CIDR %q: %w", name, cidr, err)
+		}
+		isV6 := ipnet.IP.To4() == nil
+		if i == 0 {
+			v6 = isV6
+		} else if isV6 != v6 {
+			return fmt.Errorf("set %q: mixed IPv4 and IPv6 CIDRs", name)
+		}
+	}
+
+	family := "inet"
+	if v6 {
+		family = "inet6"
+	}
+
+	if err := c.runCmd(ctx, "ipset", "create", name, "hash:net", "family", family, "-exist"); err != nil {
+		return fmt.Errorf("set %q: create failed: %w", name, err)
+	}
+
+	if err := c.runCmd(ctx, "ipset", "flush", name); err != nil {
+		return fmt.Errorf("set %q: flush failed: %w", name, err)
+	}
+
+	for _, cidr := range cidrs {
+		if err := c.runCmd(ctx, "ipset", "add", name, cidr); err != nil {
+			return fmt.Errorf("set %q: add %q failed: %w", name, cidr, err)
+		}
+	}
+
+	c.sets[name] = setInfo{v6: v6}
+	return nil
+}
+
+func (c *ChainManagerIPTables) DeleteSet(ctx context.Context, name string) error {
+	if err := c.runCmd(ctx, "ipset", "destroy", name); err != nil {
+		return fmt.Errorf("set %q: destroy failed: %w", name, err)
+	}
+	delete(c.sets, name)
 	return nil
 }

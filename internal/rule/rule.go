@@ -50,6 +50,7 @@ type Rule struct {
 	Flags                []string `json:"flags"`
 	SourceInterface      string   `json:"source_interface"`
 	DestinationInterface string   `json:"destination_interface"`
+	SourceSet            string   `json:"source_set,omitempty"`
 }
 
 func normalizeValue(what, v, def string, validValues map[string]bool) (normalized string, err error) {
@@ -178,6 +179,10 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 				s = append(s, "--icmpv6-type", strings.TrimPrefix(flagLower, icmpv6Prefix))
 			}
 		}
+	}
+
+	if r.SourceSet != "" {
+		s = append(s, "-m", "set", "--match-set", r.SourceSet, "src")
 	}
 
 	var target string

@@ -23,6 +23,12 @@ type ChainManager interface {
 	DeleteChain(ctx context.Context, name string) (err error)
 }
 
+// SetManager manages named IP sets that rules can reference via SourceSet.
+type SetManager interface {
+	ConfigureSet(ctx context.Context, name string, cidrs []string) error
+	DeleteSet(ctx context.Context, name string) error
+}
+
 type ChainManagerOpt func(ChainManager)
 
 // NewIPTablesManager creates a ChainManager backed by iptables.

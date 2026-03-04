@@ -46,7 +46,7 @@ func TestRuleToExprsTCPAllow(t *testing.T) {
 		Action:   "allow",
 	}
 
-	exprs, err := ruleToExprs(r)
+	exprs, err := ruleToExprs(r, nil)
 	if err != nil {
 		t.Fatalf("ruleToExprs: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestRuleToExprsBlock(t *testing.T) {
 		Action:   "block",
 	}
 
-	exprs, err := ruleToExprs(r)
+	exprs, err := ruleToExprs(r, nil)
 	if err != nil {
 		t.Fatalf("ruleToExprs: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestRuleToExprsPortRange(t *testing.T) {
 		Action:    "allow",
 	}
 
-	exprs, err := ruleToExprs(r)
+	exprs, err := ruleToExprs(r, nil)
 	if err != nil {
 		t.Fatalf("ruleToExprs: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestRuleToExprsZeroCIDR(t *testing.T) {
 		Action:   "allow",
 	}
 
-	exprs, err := ruleToExprs(r)
+	exprs, err := ruleToExprs(r, nil)
 	if err != nil {
 		t.Fatalf("ruleToExprs: %v", err)
 	}
@@ -485,7 +485,7 @@ func TestRuleToExprsICMPType(t *testing.T) {
 		Flags:    []string{"icmp:echo-request"},
 	}
 
-	exprs, err := ruleToExprs(r)
+	exprs, err := ruleToExprs(r, nil)
 	if err != nil {
 		t.Fatalf("ruleToExprs: %v", err)
 	}
@@ -524,6 +524,144 @@ func TestRuleToExprsICMPType(t *testing.T) {
 	v, ok := last.(*expr.Verdict)
 	if !ok || v.Kind != expr.VerdictAccept {
 		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
+	}
+}
+
+func TestRuleToExprsSourceSet(t *testing.T) {
+	r := rule.Rule{
+		Protocol:  "tcp",
+		CIDR:      "0.0.0.0/0",
+		Port:      80,
+		Action:    "allow",
+		SourceSet: "trusted",
+	}
+
+	// Create a fake set for expression generation.
+	fakeSet := &nftables.Set{
+		Name: "trusted",
+		ID:   42,
+	}
+
+	exprs, err := ruleToExprs(r, fakeSet)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	// Should contain a Payload (source addr) + Lookup pair.
+	foundPayload := false
+	foundLookup := false
+	for i, e := range exprs {
+		p, ok := e.(*expr.Payload)
+		if !ok {
+			continue
+		}
+		// IPv4 source addr: offset 12, len 4
+		if p.Base == expr.PayloadBaseNetworkHeader && p.Offset == 12 && p.Len == 4 {
+			// Check next expression is Lookup
+			if i+1 < len(exprs) {
+				if l, ok := exprs[i+1].(*expr.Lookup); ok {
+					if l.SetName == "trusted" && l.SourceRegister == 1 {
+						foundPayload = true
+						foundLookup = true
+					}
+				}
+			}
+		}
+	}
+	if !foundPayload || !foundLookup {
+		t.Fatal("expected Payload + Lookup expressions for source set")
+	}
+
+	// Last expression should be Accept verdict.
+	last := exprs[len(exprs)-1]
+	v, ok := last.(*expr.Verdict)
+	if !ok || v.Kind != expr.VerdictAccept {
+		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
+	}
+}
+
+func TestNFTablesConfigureSet(t *testing.T) {
+	conn := nftTestConn(t)
+	ctx := context.Background()
+
+	cm, err := NewNFTablesManager(WithNFTConn(conn))
+	if err != nil {
+		t.Fatalf("NewNFTablesManager: %v", err)
+	}
+
+	// Type-assert to SetManager.
+	sm := cm.(SetManager)
+
+	if err := sm.ConfigureSet(ctx, "trusted", []string{"10.0.0.0/24", "192.168.1.0/24"}); err != nil {
+		t.Fatalf("ConfigureSet: %v", err)
+	}
+
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+		t.Fatalf("AddBaseChain: %v", err)
+	}
+
+	rules := []rule.Rule{
+		{
+			Protocol:  "tcp",
+			CIDR:      "0.0.0.0/0",
+			Port:      443,
+			Action:    "allow",
+			SourceSet: "trusted",
+		},
+	}
+
+	if err := cm.ConfigureChain(ctx, "set-rules", "base-input", "", rules); err != nil {
+		t.Fatalf("ConfigureChain: %v", err)
+	}
+
+	// Verify the set exists.
+	tables, err := conn.ListTables()
+	if err != nil {
+		t.Fatalf("ListTables: %v", err)
+	}
+	if len(tables) == 0 {
+		t.Fatal("expected at least one table")
+	}
+
+	sets, err := conn.GetSets(tables[0])
+	if err != nil {
+		t.Fatalf("GetSets: %v", err)
+	}
+
+	foundSet := false
+	for _, s := range sets {
+		if s.Name == "trusted" {
+			foundSet = true
+			break
+		}
+	}
+	if !foundSet {
+		t.Fatal("expected set 'trusted' in table")
+	}
+
+	// Verify the chain has a rule.
+	chains, err := conn.ListChains()
+	if err != nil {
+		t.Fatalf("ListChains: %v", err)
+	}
+
+	var ch *nftables.Chain
+	for _, c := range chains {
+		if c.Name == "set-rules" {
+			ch = c
+			break
+		}
+	}
+	if ch == nil {
+		t.Fatal("chain set-rules not found")
+	}
+
+	gotRules, err := conn.GetRules(ch.Table, ch)
+	if err != nil {
+		t.Fatalf("GetRules: %v", err)
+	}
+	if len(gotRules) != 1 {
+		t.Fatalf("expected 1 rule, got %d", len(gotRules))
 	}
 }
 
