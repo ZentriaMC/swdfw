@@ -1,51 +1,28 @@
 package chain
 
 import (
-	"errors"
-	"strings"
-
-	"github.com/ZentriaMC/swdfw/internal/cmdchain"
+    "errors"
+    "strings"
 )
 
 const (
-	msgIPTNoRuleExist  = "Bad rule (does a matching rule exist in that chain?).\n"
-	msgIPTNoChainExist = "No chain/target/match by that name.\n"
-	msgIPTChainExist   = "Chain already exists.\n"
+    msgIPTNoRuleExist  = "Bad rule (does a matching rule exist in that chain?).\n"
+    msgIPTNoChainExist = "No chain/target/match by that name.\n"
+    msgIPTChainExist   = "Chain already exists.\n"
 )
 
-// This interceptor checks if iptables reported missing rule/chain and passes
-var IPTablesIsErrNotExist = func(short bool) cmdchain.ErrInterceptor {
-	return func(err error) error {
-		var cmdErr *cmdchain.ChainExecError
-		if !errors.As(err, &cmdErr) || cmdErr.ExitStatus() != 1 {
-			return err
-		}
-
-		if !strings.Contains(cmdErr.Stderr(), msgIPTNoRuleExist) && !strings.Contains(cmdErr.Stderr(), msgIPTNoChainExist) {
-			return err
-		}
-
-		if short {
-			return cmdchain.ErrShortCircuit
-		}
-		return nil
-	}
+func isNotExistErr(err error) bool {
+    var execErr *ExecError
+    if !errors.As(err, &execErr) || execErr.ExitStatus() != 1 {
+        return false
+    }
+    return strings.Contains(execErr.Stderr(), msgIPTNoRuleExist) || strings.Contains(execErr.Stderr(), msgIPTNoChainExist)
 }
 
-var IPTablesIsErrAlreadyExist = func(short bool) cmdchain.ErrInterceptor {
-	return func(err error) error {
-		var cmdErr *cmdchain.ChainExecError
-		if !errors.As(err, &cmdErr) || cmdErr.ExitStatus() != 1 {
-			return err
-		}
-
-		if !strings.Contains(cmdErr.Stderr(), msgIPTChainExist) {
-			return err
-		}
-
-		if short {
-			return cmdchain.ErrShortCircuit
-		}
-		return nil
-	}
+func isAlreadyExistErr(err error) bool {
+    var execErr *ExecError
+    if !errors.As(err, &execErr) || execErr.ExitStatus() != 1 {
+        return false
+    }
+    return strings.Contains(execErr.Stderr(), msgIPTChainExist)
 }
