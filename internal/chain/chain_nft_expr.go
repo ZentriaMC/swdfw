@@ -254,11 +254,11 @@ func ifnameExprs(key expr.MetaKey, name string) []expr.Any {
 }
 
 // verdictExpr returns the terminal expression for a rule action.
-func verdictExpr(action string) (expr.Any, error) {
+func verdictExpr(action rule.Action) (expr.Any, error) {
 	switch action {
-	case "allow":
+	case rule.ActionAllow:
 		return &expr.Verdict{Kind: expr.VerdictAccept}, nil
-	case "block":
+	case rule.ActionBlock:
 		return &expr.Reject{
 			Type: nftRejectICMPXUnreach,
 			Code: nftRejectICMPXPortUnreach,

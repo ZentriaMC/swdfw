@@ -8,6 +8,22 @@ import (
 	"strings"
 )
 
+// Action represents a firewall rule verdict.
+type Action string
+
+const (
+	ActionAllow Action = "allow"
+	ActionBlock Action = "block"
+)
+
+// Direction represents which hook a rule applies to.
+type Direction string
+
+const (
+	DirectionInput  Direction = "input"
+	DirectionOutput Direction = "output"
+)
+
 var (
 	supportedProtocols = map[string]bool{
 		"tcp":    true,
@@ -18,20 +34,20 @@ var (
 		"icmpv6": true,
 	}
 	supportedActions = map[string]bool{
-		"allow": true,
-		"block": true,
+		string(ActionAllow): true,
+		string(ActionBlock): true,
 	}
 	supportedDirections = map[string]bool{
-		"input":  true,
-		"output": true,
+		string(DirectionInput):  true,
+		string(DirectionOutput): true,
 	}
 )
 
 type Rule struct {
 	Protocol  string `json:"protocol"`
 	CIDR      netip.Prefix `json:"cidr"`
-	Action    string `json:"action"`
-	Direction string `json:"direction"`
+	Action    Action    `json:"action"`
+	Direction Direction `json:"direction"`
 
 	StartPort uint16 `json:"start"`
 	EndPort   uint16 `json:"end"`
@@ -79,12 +95,20 @@ func (r *Rule) Validate() (err error) {
 		return
 	}
 
-	if r.Action, err = normalizeValue("action", r.Action, "", supportedActions); err != nil {
-		return
+	{
+		var normalized string
+		if normalized, err = normalizeValue("action", string(r.Action), "", supportedActions); err != nil {
+			return
+		}
+		r.Action = Action(normalized)
 	}
 
-	if r.Direction, err = normalizeValue("direction", r.Direction, "input", supportedDirections); err != nil {
-		return
+	{
+		var normalized string
+		if normalized, err = normalizeValue("direction", string(r.Direction), "input", supportedDirections); err != nil {
+			return
+		}
+		r.Direction = Direction(normalized)
 	}
 
 	// Deduplicate and validate flags
@@ -187,9 +211,9 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 
 	var target string
 	switch r.Action {
-	case "allow":
+	case ActionAllow:
 		target = "RETURN"
-	case "block":
+	case ActionBlock:
 		target = "REJECT"
 	default:
 		err = fmt.Errorf("unhandled target '%s'", r.Action)
