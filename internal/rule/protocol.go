@@ -1,8 +1,9 @@
 package rule
 
-type Protocol byte
+// Family represents the IP address family (IPv4 or IPv6).
+type Family byte
 
 const (
-	ProtocolIPv4 Protocol = iota
-	ProtocolIPv6
+	FamilyIPv4 Family = iota
+	FamilyIPv6
 )

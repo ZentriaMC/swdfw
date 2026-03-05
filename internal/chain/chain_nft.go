@@ -47,9 +47,9 @@ type ChainManagerNFTables struct {
 func NewNFTablesManager(opts ...ChainManagerOpt) (ChainManager, error) {
 	cm := &ChainManagerNFTables{
 		chainManagerBase: &chainManagerBase{
-			protocols: map[rule.Protocol]bool{
-				rule.ProtocolIPv4: true,
-				rule.ProtocolIPv6: true,
+			protocols: map[rule.Family]bool{
+				rule.FamilyIPv4: true,
+				rule.FamilyIPv6: true,
 			},
 			quirks: map[Quirk]bool{},
 		},
@@ -199,7 +199,7 @@ func (c *ChainManagerNFTables) apply() error {
 		ch := chainObjs[name]
 
 		for _, r := range state.rules {
-			if _, ok := c.protocols[r.Proto()]; !ok {
+			if _, ok := c.protocols[r.Family()]; !ok {
 				continue
 			}
 

@@ -19,26 +19,26 @@ func (c *ChainManagerIPTables) chainLength(name string, mod int) error {
 	return nil
 }
 
-func (c *ChainManagerIPTables) prog(proto rule.Protocol) string {
-	if proto == rule.ProtocolIPv4 {
+func (c *ChainManagerIPTables) prog(proto rule.Family) string {
+	if proto == rule.FamilyIPv4 {
 		return c.iptablesPath
 	}
 	return c.ip6tablesPath
 }
 
-func (c *ChainManagerIPTables) iptables(proto rule.Protocol, table, action, chainName string, args ...string) []string {
+func (c *ChainManagerIPTables) iptables(proto rule.Family, table, action, chainName string, args ...string) []string {
 	return append([]string{c.prog(proto), "--wait", "1", "-t", table, action, chainName}, args...)
 }
 
-func (c *ChainManagerIPTables) cmdChainExists(proto rule.Protocol, table, chain string) []string {
+func (c *ChainManagerIPTables) cmdChainExists(proto rule.Family, table, chain string) []string {
 	return c.iptables(proto, table, "-S", chain, "1")
 }
 
-func (c *ChainManagerIPTables) cmdRuleExists(proto rule.Protocol, table, chain string, rulespec ...string) []string {
+func (c *ChainManagerIPTables) cmdRuleExists(proto rule.Family, table, chain string, rulespec ...string) []string {
 	return c.iptables(proto, table, "-C", chain, rulespec...)
 }
 
-func (c *ChainManagerIPTables) cmdCreateChain(proto rule.Protocol, table, chain string) []string {
+func (c *ChainManagerIPTables) cmdCreateChain(proto rule.Family, table, chain string) []string {
 	return c.iptables(proto, table, "-N", chain)
 }
 
@@ -51,7 +51,7 @@ func (c *ChainManagerIPTables) hasQuirk(q Quirk) bool {
 	return ok
 }
 
-func (c *ChainManagerIPTables) chainExists(ctx context.Context, proto rule.Protocol, table, chain string) (bool, error) {
+func (c *ChainManagerIPTables) chainExists(ctx context.Context, proto rule.Family, table, chain string) (bool, error) {
 	err := c.runCmd(ctx, c.cmdChainExists(proto, table, chain)...)
 	if err == nil {
 		return true, nil
@@ -62,7 +62,7 @@ func (c *ChainManagerIPTables) chainExists(ctx context.Context, proto rule.Proto
 	return false, err
 }
 
-func (c *ChainManagerIPTables) ruleExists(ctx context.Context, proto rule.Protocol, table, chain string, rulespec ...string) (bool, error) {
+func (c *ChainManagerIPTables) ruleExists(ctx context.Context, proto rule.Family, table, chain string, rulespec ...string) (bool, error) {
 	err := c.runCmd(ctx, c.cmdRuleExists(proto, table, chain, rulespec...)...)
 	if err == nil {
 		return true, nil
@@ -73,7 +73,7 @@ func (c *ChainManagerIPTables) ruleExists(ctx context.Context, proto rule.Protoc
 	return false, err
 }
 
-func (c *ChainManagerIPTables) runProtocol(ctx context.Context, proto rule.Protocol, table, action, chainName string, args ...string) error {
+func (c *ChainManagerIPTables) runProtocol(ctx context.Context, proto rule.Family, table, action, chainName string, args ...string) error {
 	err := c.runCmd(ctx, c.iptables(proto, table, action, chainName, args...)...)
 	if err != nil && isAlreadyExistErr(err) {
 		return nil
@@ -144,7 +144,7 @@ func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempNa
 	var rulespec []string
 	var rerr error
 	for _, r := range rules {
-		proto := r.Proto()
+		proto := r.Family()
 		if _, ok := c.protocols[proto]; !ok {
 			continue
 		}

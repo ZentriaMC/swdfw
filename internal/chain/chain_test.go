@@ -20,7 +20,7 @@ func TestChain(t *testing.T) {
 
 	c, err := chain.NewIPTablesManager(
 		chain.WithCustomExecutor(recorder),
-		chain.WithProtocols(rule.ProtocolIPv4),
+		chain.WithFamilies(rule.FamilyIPv4),
 		chain.WithChecks(false),
 	)
 	if err != nil {
@@ -87,7 +87,7 @@ func TestChainWithSets(t *testing.T) {
 
 	c, err := chain.NewIPTablesManager(
 		chain.WithCustomExecutor(recorder),
-		chain.WithProtocols(rule.ProtocolIPv4),
+		chain.WithFamilies(rule.FamilyIPv4),
 		chain.WithChecks(false),
 	)
 	if err != nil {

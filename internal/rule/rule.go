@@ -24,14 +24,26 @@ const (
 	DirectionOutput Direction = "output"
 )
 
+// Protocol represents the L4 protocol (with optional v6 suffix).
+type Protocol string
+
+const (
+	ProtocolTCP    Protocol = "tcp"
+	ProtocolUDP    Protocol = "udp"
+	ProtocolICMP   Protocol = "icmp"
+	ProtocolTCPv6  Protocol = "tcpv6"
+	ProtocolUDPv6  Protocol = "udpv6"
+	ProtocolICMPv6 Protocol = "icmpv6"
+)
+
 var (
 	supportedProtocols = map[string]bool{
-		"tcp":    true,
-		"udp":    true,
-		"icmp":   true,
-		"tcpv6":  true,
-		"udpv6":  true,
-		"icmpv6": true,
+		string(ProtocolTCP):    true,
+		string(ProtocolUDP):    true,
+		string(ProtocolICMP):   true,
+		string(ProtocolTCPv6):  true,
+		string(ProtocolUDPv6):  true,
+		string(ProtocolICMPv6): true,
 	}
 	supportedActions = map[string]bool{
 		string(ActionAllow): true,
@@ -44,7 +56,7 @@ var (
 )
 
 type Rule struct {
-	Protocol  string `json:"protocol"`
+	Protocol  Protocol `json:"protocol"`
 	CIDR      netip.Prefix `json:"cidr"`
 	Action    Action    `json:"action"`
 	Direction Direction `json:"direction"`
@@ -91,8 +103,12 @@ func (r *Rule) UnmarshalJSON(b []byte) (err error) {
 }
 
 func (r *Rule) Validate() (err error) {
-	if r.Protocol, err = normalizeValue("protocol", r.Protocol, "", supportedProtocols); err != nil {
-		return
+	{
+		var normalized string
+		if normalized, err = normalizeValue("protocol", string(r.Protocol), "", supportedProtocols); err != nil {
+			return
+		}
+		r.Protocol = Protocol(normalized)
 	}
 
 	{
@@ -155,18 +171,18 @@ func (r *Rule) Validate() (err error) {
 }
 
 func (r *Rule) IsV6() bool {
-	return strings.HasSuffix(r.Protocol, "v6")
+	return strings.HasSuffix(string(r.Protocol), "v6")
 }
 
 func (r *Rule) ProtocolName() string {
-	return strings.TrimSuffix(r.Protocol, "v6")
+	return strings.TrimSuffix(string(r.Protocol), "v6")
 }
 
-func (r *Rule) Proto() Protocol {
+func (r *Rule) Family() Family {
 	if r.IsV6() {
-		return ProtocolIPv6
+		return FamilyIPv6
 	}
-	return ProtocolIPv4
+	return FamilyIPv4
 }
 
 func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
@@ -175,10 +191,10 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 	}
 	s = []string{"-s", r.CIDR.String()}
 
-	if r.Protocol != "icmpv6" {
+	if r.Protocol != ProtocolICMPv6 {
 		s = append(s, "-p", r.ProtocolName())
 	} else {
-		s = append(s, "-p", r.Protocol)
+		s = append(s, "-p", string(r.Protocol))
 	}
 
 	if r.Port > 0 {

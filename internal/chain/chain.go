@@ -37,9 +37,9 @@ func NewIPTablesManager(opts ...ChainManagerOpt) (ChainManager, error) {
 	cm := newChainManagerIPTables(&chainManagerBase{
 		executor:      DefaultExecutor,
 		executeChecks: true,
-		protocols: map[rule.Protocol]bool{
-			rule.ProtocolIPv4: true,
-			rule.ProtocolIPv6: true,
+		protocols: map[rule.Family]bool{
+			rule.FamilyIPv4: true,
+			rule.FamilyIPv6: true,
 		},
 		quirks: map[Quirk]bool{},
 	})
@@ -66,7 +66,7 @@ func WithCustomExecutor(executor Executor) ChainManagerOpt {
 	}
 }
 
-func WithProtocols(enabledProtocols ...rule.Protocol) ChainManagerOpt {
+func WithFamilies(enabledProtocols ...rule.Family) ChainManagerOpt {
 	return func(c ChainManager) {
 		c.(chainManagerBaseGetter).Mut(func(cm *chainManagerBase) {
 			for k := range cm.protocols {
@@ -91,7 +91,7 @@ func WithChecks(check bool) ChainManagerOpt {
 type chainManagerBase struct {
 	executor      Executor
 	executeChecks bool
-	protocols     map[rule.Protocol]bool
+	protocols     map[rule.Family]bool
 	quirks        map[Quirk]bool
 }
 

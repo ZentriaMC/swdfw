@@ -173,7 +173,7 @@ func TestChainDockerIPTablesLegacy(t *testing.T) {
 
 	c, err := chain.NewIPTablesManager(
 		chain.WithCustomExecutor(dockerExecutor),
-		chain.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
+		chain.WithFamilies(rule.FamilyIPv4, rule.FamilyIPv6),
 	)
 	if err != nil {
 		t.Fatalf("failed to initialize chainmanager: %s", err)
@@ -279,7 +279,7 @@ func TestChainDockerIPTablesNft(t *testing.T) {
 
 	c, err := chain.NewIPTablesManager(
 		chain.WithCustomExecutor(dockerExecutor),
-		chain.WithProtocols(rule.ProtocolIPv4, rule.ProtocolIPv6),
+		chain.WithFamilies(rule.FamilyIPv4, rule.FamilyIPv6),
 		chain.IPTablesPath("iptables-nft"),
 		chain.IP6TablesPath("ip6tables-nft"),
 		chain.Quirks(chain.QuirkIPTablesBrokenChainCheck),
