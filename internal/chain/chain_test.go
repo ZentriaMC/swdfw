@@ -93,7 +93,7 @@ func TestChainWithSets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to initialize chainmanager: %s", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ctx := context.Background()
 
