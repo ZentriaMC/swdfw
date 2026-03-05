@@ -15,15 +15,6 @@ All you have to do is allow swdfw to set up jump to its managed input & output c
 
 TODO: schematic
 
-## Why?
-
-### iptables?
-
-swdfw focses initally on iptables because of [It's 2021: nftables still does not integrate][zentria-iptables-blog-post].
-I believe it's better to focus on iptables initially to support wide variety of software out of the box.
-
-[nftables][nftables] support is planned in the future, mainly because Zentria infrastructure uses nftables in some places already.
-
 ### Existing solutions on infrastructure level
 
 It's common to disable OS level firewall on cloud providers when provider has its own firewall solution available.
@@ -44,6 +35,8 @@ With swdfw, applying a new set of rules is as fast as machine can swap out the r
 ## Roadmap
 
 - [x] Proof of concept output rules generation + integration test
+- [x] [nftables][nftables] support (via netlink)
+- [x] [ipset][ipset] / named set support (both backends)
 - [ ] Output rules
 - [ ] Rules covering all protocols or only handling interfaces
 - [ ] Rules declaration (file format/structure)
@@ -54,9 +47,6 @@ With swdfw, applying a new set of rules is as fast as machine can swap out the r
     - [ ] DROP instead of REJECT
     - [ ] Collecting rules targeting same CIDR with different ports into [multiport match][iptables-extensions-multiport]
     - [ ] Collecting rules targeting different CIDRs with same ports into [ipset][ipset]
-- [ ] [ipset][ipset] support
-- [ ] [nftables][nftables] support
-    - [ ] Could utilize [JSON input/output][redhat-nftables-json] support
 
 ## Known issues
 
@@ -71,9 +61,7 @@ With swdfw, applying a new set of rules is as fast as machine can swap out the r
 
 Not determined yet.
 
-[zentria-iptables-blog-post]: https://blog.zentria.company/posts/its-2021-nftables-still-does-not-integrate/
 [iptables-extensions-multiport]: https://ipset.netfilter.org/iptables-extensions.man.html#lbBM
 [ipset]: https://ipset.netfilter.org/ipset.man.html
 [nftables]: https://wiki.nftables.org/wiki-nftables/index.php/Main_Page
-[redhat-nftables-json]: https://web.archive.org/web/20211026094902/https://workshop.netfilter.org/2019/wiki/images/c/c6/NFWS_2019_-_firewalld%2C_libnftables%2C_and_json%2C_oh_my.pdf
 [toctou]: https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use
