@@ -14,7 +14,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 // nftTestConn creates an isolated network namespace and returns an nftables

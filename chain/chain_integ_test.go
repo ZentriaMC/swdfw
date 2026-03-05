@@ -15,8 +15,8 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"go.uber.org/zap"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/chain"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 var (
@@ -115,7 +115,7 @@ func testEntrypoint(m *testing.M) (exitCode int) {
 		}
 	}()
 
-	err = setupResource("iptables")(dockerPool.BuildAndRunWithOptions("../../test/Dockerfile.iptables", &dockertest.RunOptions{
+	err = setupResource("iptables")(dockerPool.BuildAndRunWithOptions("../test/Dockerfile.iptables", &dockertest.RunOptions{
 		Name:   fmt.Sprintf("iptables-testing-%d", time.Now().Unix()),
 		CapAdd: []string{"NET_ADMIN"},
 		Cmd:    []string{"/bin/sh", "-c", "while sleep 3600; do :; done"},
@@ -141,7 +141,7 @@ func testEntrypoint(m *testing.M) (exitCode int) {
 
 	err = setupResource("nftables")(dockerPool.BuildAndRunWithBuildOptions(
 		&dockertest.BuildOptions{
-			ContextDir: "../../",
+			ContextDir: "../",
 			Dockerfile: "test/Dockerfile.nftables",
 		},
 		&dockertest.RunOptions{

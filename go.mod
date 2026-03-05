@@ -9,6 +9,7 @@ require (
 	github.com/vishvananda/netns v0.0.4
 	go.uber.org/zap v1.27.1
 	golang.org/x/sys v0.41.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

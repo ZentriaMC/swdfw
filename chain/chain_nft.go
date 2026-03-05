@@ -11,7 +11,7 @@ import (
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 var hookToNFTables = map[Hook]nftables.ChainHook{

@@ -57,24 +57,24 @@ var (
 )
 
 type Rule struct {
-	Protocol  Protocol `json:"protocol"`
-	CIDR      netip.Prefix `json:"cidr"`
-	Action    Action    `json:"action"`
-	Direction Direction `json:"direction"`
+	Protocol  Protocol     `json:"protocol" yaml:"protocol"`
+	CIDR      netip.Prefix `json:"cidr" yaml:"cidr"`
+	Action    Action       `json:"action" yaml:"action"`
+	Direction Direction    `json:"direction" yaml:"direction"`
 
-	StartPort uint16 `json:"start"`
-	EndPort   uint16 `json:"end"`
-	Port      uint16 `json:"-"`
+	StartPort uint16 `json:"start" yaml:"start"`
+	EndPort   uint16 `json:"end" yaml:"end"`
+	Port      uint16 `json:"-" yaml:"-"`
 
 	// Only TCP and UDP
-	SourceEndPort   uint16 `json:"source_end"`
-	SourcePort      uint16 `json:"source_port"`
-	SourceStartPort uint16 `json:"source_start"`
+	SourceEndPort   uint16 `json:"source_end" yaml:"source_end"`
+	SourcePort      uint16 `json:"source_port" yaml:"source_port"`
+	SourceStartPort uint16 `json:"source_start" yaml:"source_start"`
 
-	Flags                []string `json:"flags"`
-	SourceInterface      string   `json:"source_interface"`
-	DestinationInterface string   `json:"destination_interface"`
-	SourceSet            string   `json:"source_set,omitempty"`
+	Flags                []string `json:"flags" yaml:"flags"`
+	SourceInterface      string   `json:"source_interface" yaml:"source_interface"`
+	DestinationInterface string   `json:"destination_interface" yaml:"destination_interface"`
+	SourceSet            string   `json:"source_set,omitempty" yaml:"source_set,omitempty"`
 }
 
 func normalizeValue(what, v, def string, validValues map[string]bool) (normalized string, err error) {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ZentriaMC/swdfw/internal/chain"
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/chain"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 func TestChain(t *testing.T) {

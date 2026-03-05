@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/netip"
 
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 // Hook represents a netfilter hook point.

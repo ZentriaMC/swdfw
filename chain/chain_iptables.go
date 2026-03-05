@@ -9,7 +9,7 @@ import (
 	"errors"
 	"go.uber.org/zap"
 
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 type setInfo struct {

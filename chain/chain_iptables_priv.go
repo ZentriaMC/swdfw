@@ -7,7 +7,7 @@ import (
 	"errors"
 	"go.uber.org/zap"
 
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 func (c *ChainManagerIPTables) chainLength(name string, mod int) error {

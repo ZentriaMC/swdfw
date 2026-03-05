@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ZentriaMC/swdfw/internal/rule"
+	"github.com/ZentriaMC/swdfw/rule"
 )
 
 func TestSimpleRule(t *testing.T) {

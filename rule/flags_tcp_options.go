@@ -1,6 +1,6 @@
 package rule
 
-//go:generate go run ../../hack/parse_tcp_params.go
+//go:generate go run ../hack/parse_tcp_params.go
 
 var tcpOptPrefix = "tcpopt:"
 

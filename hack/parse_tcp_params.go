@@ -33,7 +33,7 @@ func entrypoint() (err error) {
 		return
 	}
 
-	targetFileName := filepath.Join(projectRoot, "internal/rule/flags_tcp_options.go")
+	targetFileName := filepath.Join(projectRoot, "rule/flags_tcp_options.go")
 	paramsFileName := filepath.Join(projectRoot, "hack/tcp-parameters-1.csv")
 
 	var paramsFile *os.File

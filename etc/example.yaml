@@ -1,0 +1,124 @@
+---
+backend: "nftables"
+table: "swdfw"
+
+families:
+  - "ipv4"
+  - "ipv6"
+
+sets:
+  trusted:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+chains:
+  - name: "swdfw-input"
+    hook: "input"
+
+  - name: "swdfw-output"
+    hook: "output"
+
+  # Allow SSH from trusted networks
+  - name: "ssh-allow"
+    parent: "swdfw-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        start: 22
+        action: "allow"
+        source_set: "trusted"
+        flags:
+          - "tcp:syn"
+          - "state:new"
+
+  # Allow established/related connections
+  - name: "conntrack"
+    parent: "swdfw-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        action: "allow"
+        flags:
+          - "state:established"
+      - protocol: "udp"
+        cidr: "0.0.0.0/0"
+        action: "allow"
+        flags:
+          - "state:established"
+      - protocol: "tcpv6"
+        cidr: "::/0"
+        action: "allow"
+        flags:
+          - "state:established"
+      - protocol: "udpv6"
+        cidr: "::/0"
+        action: "allow"
+        flags:
+          - "state:established"
+
+  # Allow ICMP ping
+  - name: "icmp-allow"
+    parent: "swdfw-input"
+    rules:
+      - protocol: "icmp"
+        cidr: "0.0.0.0/0"
+        action: "allow"
+        flags:
+          - "icmp:echo-request"
+      - protocol: "icmpv6"
+        cidr: "::/0"
+        action: "allow"
+        flags:
+          - "icmpv6:echo-request"
+
+  # Allow HTTP/HTTPS from anywhere
+  - name: "web"
+    parent: "swdfw-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        start: 80
+        action: "allow"
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        start: 443
+        action: "allow"
+      - protocol: "tcpv6"
+        cidr: "::/0"
+        start: 80
+        action: "allow"
+      - protocol: "tcpv6"
+        cidr: "::/0"
+        start: 443
+        action: "allow"
+
+  # Allow DNS (UDP 53) from localhost only
+  - name: "dns"
+    parent: "swdfw-input"
+    rules:
+      - protocol: "udp"
+        cidr: "127.0.0.0/8"
+        start: 53
+        action: "allow"
+      - protocol: "udpv6"
+        cidr: "::1/128"
+        start: 53
+        action: "allow"
+
+  # Block everything else
+  - name: "default-block"
+    parent: "swdfw-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        action: "block"
+      - protocol: "udp"
+        cidr: "0.0.0.0/0"
+        action: "block"
+      - protocol: "tcpv6"
+        cidr: "::/0"
+        action: "block"
+      - protocol: "udpv6"
+        cidr: "::/0"
+        action: "block"
