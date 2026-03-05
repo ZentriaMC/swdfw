@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/multierr"
+	"errors"
 	"go.uber.org/zap"
 
 	"github.com/ZentriaMC/swdfw/internal/rule"
@@ -85,7 +85,7 @@ func (c *ChainManagerIPTables) runAllProtocols(ctx context.Context, table, actio
 	var err error
 	for proto := range c.protocols {
 		perr := c.runProtocol(ctx, proto, table, action, chainName, args...)
-		err = multierr.Append(err, perr)
+		err = errors.Join(err, perr)
 	}
 	return err
 }
@@ -96,7 +96,7 @@ func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table
 		if c.executeChecks && !c.hasQuirk(QuirkIPTablesBrokenChainCheck) {
 			exists, cerr := c.chainExists(ctx, proto, table, chainName)
 			if cerr != nil {
-				err = multierr.Append(err, cerr)
+				err = errors.Join(err, cerr)
 				continue
 			}
 			if exists {
@@ -108,7 +108,7 @@ func (c *ChainManagerIPTables) createChainIfNotExists(ctx context.Context, table
 		if rerr != nil && isAlreadyExistErr(rerr) {
 			continue
 		}
-		err = multierr.Append(err, rerr)
+		err = errors.Join(err, rerr)
 	}
 	return err
 }
@@ -150,16 +150,16 @@ func (c *ChainManagerIPTables) createChain(ctx context.Context, realName, tempNa
 		}
 
 		if rulespec, rerr = r.ToRulespec(realName); rerr != nil {
-			err = multierr.Append(err, rerr)
+			err = errors.Join(err, rerr)
 			continue
 		}
 
-		err = multierr.Append(err, c.runProtocol(ctx, proto, "filter", "-A", tempName, rulespec...))
+		err = errors.Join(err, c.runProtocol(ctx, proto, "filter", "-A", tempName, rulespec...))
 	}
 
 	if jumpTo != "" {
 		cerr := c.runAllProtocols(ctx, "filter", "-A", tempName, "-g", jumpTo)
-		err = multierr.Append(err, cerr)
+		err = errors.Join(err, cerr)
 	}
 
 	return

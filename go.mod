@@ -7,7 +7,6 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/vishvananda/netns v0.0.4
-	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/sys v0.41.0
 )
@@ -38,6 +37,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect

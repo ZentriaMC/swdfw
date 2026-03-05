@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"time"
 
-	"go.uber.org/multierr"
+	"errors"
 	"go.uber.org/zap"
 
 	"github.com/ZentriaMC/swdfw/internal/rule"
@@ -94,7 +94,7 @@ func (c *ChainManagerIPTables) AddBaseChain(ctx context.Context, name string, ho
 		if c.executeChecks {
 			exists, cerr := c.ruleExists(ctx, proto, "filter", parentChain, jump...)
 			if cerr != nil {
-				err = multierr.Append(err, cerr)
+				err = errors.Join(err, cerr)
 				continue
 			}
 			if exists {
@@ -103,7 +103,7 @@ func (c *ChainManagerIPTables) AddBaseChain(ctx context.Context, name string, ho
 		}
 
 		rerr := c.runCmd(ctx, c.iptables(proto, "filter", "-A", parentChain, jump...)...)
-		err = multierr.Append(err, rerr)
+		err = errors.Join(err, rerr)
 	}
 
 	return err
@@ -115,7 +115,7 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) err
 		if c.executeChecks && !c.hasQuirk(QuirkIPTablesBrokenChainCheck) {
 			exists, cerr := c.chainExists(ctx, proto, "filter", name)
 			if cerr != nil {
-				err = multierr.Append(err, cerr)
+				err = errors.Join(err, cerr)
 				continue
 			}
 			if !exists {
@@ -128,7 +128,7 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) err
 			if c.hasQuirk(QuirkIPTablesBrokenChainCheck) && isNotExistErr(ferr) {
 				continue
 			}
-			err = multierr.Append(err, ferr)
+			err = errors.Join(err, ferr)
 			continue
 		}
 
@@ -137,7 +137,7 @@ func (c *ChainManagerIPTables) DeleteChain(ctx context.Context, name string) err
 			if c.hasQuirk(QuirkIPTablesBrokenChainCheck) && isNotExistErr(derr) {
 				continue
 			}
-			err = multierr.Append(err, derr)
+			err = errors.Join(err, derr)
 		}
 	}
 
