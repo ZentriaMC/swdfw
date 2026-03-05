@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
@@ -67,8 +68,7 @@ func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentC
 	_ = c.runAllProtocols(ctx, "filter", "-D", parentChain, "-g", name)
 
 	if err := c.DeleteChain(ctx, name); err != nil {
-		// TODO: not fatal
-		return fmt.Errorf("failed to clean up old rules: %w", err)
+		zap.L().Warn("failed to clean up old chain", zap.String("chain", name), zap.Error(err))
 	}
 
 	return c.runAllProtocols(ctx, "filter", "-E", tempName, name)
