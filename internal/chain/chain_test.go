@@ -3,6 +3,7 @@ package chain_test
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -35,27 +36,27 @@ func TestChain(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "10.123.0.1/24",
+			CIDR:     netip.MustParsePrefix("10.123.0.1/24"),
 			Port:     22,
 			Action:   "allow",
 		},
 		{
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
 		},
 		{
 			Protocol:  "tcpv6",
-			CIDR:      "::/0",
+			CIDR:      netip.MustParsePrefix("::/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
 		},
 		{
 			Protocol: "tcp",
-			CIDR:     "0.0.0.0/0",
+			CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 			Action:   "block",
 		},
 	}
@@ -103,7 +104,7 @@ func TestChainWithSets(t *testing.T) {
 	}
 
 	// ConfigureSet should produce ipset commands.
-	if err := sm.ConfigureSet(ctx, "trusted", []string{"10.0.0.0/24", "192.168.1.0/24"}); err != nil {
+	if err := sm.ConfigureSet(ctx, "trusted", []netip.Prefix{netip.MustParsePrefix("10.0.0.0/24"), netip.MustParsePrefix("192.168.1.0/24")}); err != nil {
 		t.Fatalf("ConfigureSet: %v", err)
 	}
 
@@ -143,7 +144,7 @@ func TestChainWithSets(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Port:      443,
 			Action:    "allow",
 			SourceSet: "trusted",

@@ -5,31 +5,30 @@ package chain
 import (
 	"fmt"
 	"math/big"
-	"net"
+	"net/netip"
 
 	"github.com/google/nftables"
 )
 
-// cidrToSetElements converts a CIDR string into an interval pair suitable
+// cidrToSetElements converts a netip.Prefix into an interval pair suitable
 // for an nftables interval set: [network, broadcast+1).
-func cidrToSetElements(cidr string, v6 bool) ([]nftables.SetElement, error) {
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+func cidrToSetElements(cidr netip.Prefix, v6 bool) ([]nftables.SetElement, error) {
+	if !cidr.IsValid() {
+		return nil, fmt.Errorf("invalid CIDR %q", cidr)
 	}
 
+	masked := cidr.Masked()
 	var startIP []byte
 	if v6 {
-		startIP = ipnet.IP.To16()
+		a := masked.Addr().As16()
+		startIP = a[:]
 	} else {
-		startIP = ipnet.IP.To4()
-	}
-	if startIP == nil {
-		return nil, fmt.Errorf("CIDR %q: IP conversion failed", cidr)
+		a := masked.Addr().As4()
+		startIP = a[:]
 	}
 
 	// Compute the exclusive end: broadcast + 1.
-	endIP := broadcastPlusOne(startIP, ipnet.Mask)
+	endIP := broadcastPlusOne(cidr)
 
 	return []nftables.SetElement{
 		{Key: startIP},
@@ -38,7 +37,7 @@ func cidrToSetElements(cidr string, v6 bool) ([]nftables.SetElement, error) {
 }
 
 // cidrsToSetElements converts multiple CIDRs into nftables set elements.
-func cidrsToSetElements(cidrs []string, v6 bool) ([]nftables.SetElement, error) {
+func cidrsToSetElements(cidrs []netip.Prefix, v6 bool) ([]nftables.SetElement, error) {
 	var elements []nftables.SetElement
 	for _, cidr := range cidrs {
 		elems, err := cidrToSetElements(cidr, v6)
@@ -51,12 +50,29 @@ func cidrsToSetElements(cidrs []string, v6 bool) ([]nftables.SetElement, error) 
 }
 
 // broadcastPlusOne returns the first IP address past the broadcast address
-// of the given network.
-func broadcastPlusOne(ip net.IP, mask net.IPMask) net.IP {
+// of the given prefix.
+func broadcastPlusOne(prefix netip.Prefix) []byte {
+	masked := prefix.Masked()
+	byteLen := 4
+	if prefix.Addr().Is6() {
+		byteLen = 16
+	}
+
+	var ipBytes []byte
+	if byteLen == 16 {
+		a := masked.Addr().As16()
+		ipBytes = a[:]
+	} else {
+		a := masked.Addr().As4()
+		ipBytes = a[:]
+	}
+
+	mask := prefixToMask(prefix.Bits(), byteLen)
+
 	// Compute broadcast: IP | ^mask
-	broadcast := make(net.IP, len(ip))
-	for i := range ip {
-		broadcast[i] = ip[i] | ^mask[i]
+	broadcast := make([]byte, byteLen)
+	for i := range ipBytes {
+		broadcast[i] = ipBytes[i] | ^mask[i]
 	}
 
 	// Add 1 using big.Int for correct carry handling.
@@ -64,7 +80,7 @@ func broadcastPlusOne(ip net.IP, mask net.IPMask) net.IP {
 	n.Add(n, big.NewInt(1))
 
 	b := n.Bytes()
-	result := make(net.IP, len(ip))
+	result := make([]byte, byteLen)
 	// Right-align into result (big.Int.Bytes may be shorter).
 	copy(result[len(result)-len(b):], b)
 
@@ -80,13 +96,12 @@ func setKeyType(v6 bool) (nftables.SetDatatype, uint32) {
 }
 
 // parseCIDRsFamily determines whether all CIDRs are IPv4 or IPv6 (must be uniform).
-func parseCIDRsFamily(cidrs []string) (v6 bool, err error) {
+func parseCIDRsFamily(cidrs []netip.Prefix) (v6 bool, err error) {
 	for i, cidr := range cidrs {
-		ip, _, perr := net.ParseCIDR(cidr)
-		if perr != nil {
-			return false, fmt.Errorf("invalid CIDR %q: %w", cidr, perr)
+		if !cidr.IsValid() {
+			return false, fmt.Errorf("invalid CIDR %q", cidr)
 		}
-		isV6 := ip.To4() == nil
+		isV6 := cidr.Addr().Is6()
 		if i == 0 {
 			v6 = isV6
 		} else if isV6 != v6 {

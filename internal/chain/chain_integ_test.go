@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/netip"
 	"os"
 	"strings"
 	"testing"
@@ -188,14 +189,14 @@ func TestChainDockerIPTablesLegacy(t *testing.T) {
 		{
 			Direction: "input",
 			Protocol:  "tcp",
-			CIDR:      "10.123.0.1/24",
+			CIDR:      netip.MustParsePrefix("10.123.0.1/24"),
 			Port:      22,
 			Action:    "allow",
 		},
 		{
 			Direction: "input",
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
@@ -203,7 +204,7 @@ func TestChainDockerIPTablesLegacy(t *testing.T) {
 		{
 			Direction: "input",
 			Protocol:  "tcpv6",
-			CIDR:      "::/0",
+			CIDR:      netip.MustParsePrefix("::/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
@@ -211,13 +212,13 @@ func TestChainDockerIPTablesLegacy(t *testing.T) {
 		{
 			Direction: "input",
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Action:    "block",
 		},
 		{
 			Direction: "input",
 			Protocol:  "tcpv6",
-			CIDR:      "::/0",
+			CIDR:      netip.MustParsePrefix("::/0"),
 			Action:    "block",
 		},
 	}
@@ -297,14 +298,14 @@ func TestChainDockerIPTablesNft(t *testing.T) {
 		{
 			Direction: "input",
 			Protocol:  "tcp",
-			CIDR:      "10.123.0.1/24",
+			CIDR:      netip.MustParsePrefix("10.123.0.1/24"),
 			Port:      22,
 			Action:    "allow",
 		},
 		{
 			Direction: "input",
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
@@ -312,7 +313,7 @@ func TestChainDockerIPTablesNft(t *testing.T) {
 		{
 			Direction: "input",
 			Protocol:  "tcpv6",
-			CIDR:      "::/0",
+			CIDR:      netip.MustParsePrefix("::/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
@@ -320,13 +321,13 @@ func TestChainDockerIPTablesNft(t *testing.T) {
 		{
 			Direction: "input",
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Action:    "block",
 		},
 		{
 			Direction: "input",
 			Protocol:  "tcpv6",
-			CIDR:      "::/0",
+			CIDR:      netip.MustParsePrefix("::/0"),
 			Action:    "block",
 		},
 	}

@@ -5,6 +5,7 @@ package chain
 import (
 	"context"
 	"fmt"
+	"net/netip"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
@@ -26,7 +27,7 @@ type chainState struct {
 }
 
 type setDef struct {
-	cidrs []string
+	cidrs []netip.Prefix
 	v6    bool
 }
 
@@ -112,7 +113,7 @@ func (c *ChainManagerNFTables) Close() error {
 	return nil
 }
 
-func (c *ChainManagerNFTables) ConfigureSet(_ context.Context, name string, cidrs []string) error {
+func (c *ChainManagerNFTables) ConfigureSet(_ context.Context, name string, cidrs []netip.Prefix) error {
 	if len(cidrs) == 0 {
 		return fmt.Errorf("set %q: at least one CIDR required", name)
 	}

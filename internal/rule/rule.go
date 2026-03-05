@@ -3,7 +3,7 @@ package rule
 import (
 	"encoding/json"
 	"fmt"
-	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -29,7 +29,7 @@ var (
 
 type Rule struct {
 	Protocol  string `json:"protocol"`
-	CIDR      string `json:"cidr"` // TODO: type
+	CIDR      netip.Prefix `json:"cidr"`
 	Action    string `json:"action"`
 	Direction string `json:"direction"`
 
@@ -103,13 +103,13 @@ func (r *Rule) Validate() (err error) {
 	}
 
 	// Validate IP
-	var cidr *net.IPNet
-	if _, cidr, err = net.ParseCIDR(r.CIDR); err != nil {
+	if !r.CIDR.IsValid() {
+		err = fmt.Errorf("invalid CIDR %q", r.CIDR)
 		return
 	}
+	r.CIDR = r.CIDR.Masked()
 
-	cidrV6 := cidr.IP.To4() == nil
-	if r.IsV6() != cidrV6 {
+	if r.IsV6() != r.CIDR.Addr().Is6() {
 		err = fmt.Errorf("ipv4 in ipv6 (or vice versa) rule")
 		return
 	}
@@ -149,7 +149,7 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 	if err = r.Validate(); err != nil {
 		return
 	}
-	s = []string{"-s", r.CIDR}
+	s = []string{"-s", r.CIDR.String()}
 
 	if r.Protocol != "icmpv6" {
 		s = append(s, "-p", r.ProtocolName())

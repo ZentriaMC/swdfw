@@ -5,7 +5,7 @@ package chain
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 	"strings"
 
 	"github.com/google/nftables"
@@ -111,28 +111,31 @@ func ruleToExprs(r rule.Rule, sourceSet *nftables.Set) ([]expr.Any, error) {
 
 // cidrExprs builds expressions to match a source CIDR.
 // Returns nil for /0 masks (matches everything).
-func cidrExprs(cidr string, v6 bool) ([]expr.Any, error) {
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+func cidrExprs(cidr netip.Prefix, v6 bool) ([]expr.Any, error) {
+	if !cidr.IsValid() {
+		return nil, fmt.Errorf("invalid CIDR %q", cidr)
 	}
 
-	ones, _ := ipnet.Mask.Size()
-	if ones == 0 {
+	if cidr.Bits() == 0 {
 		return nil, nil
 	}
 
+	masked := cidr.Masked()
 	var addrOffset, addrLen uint32
 	var network []byte
 	if v6 {
 		addrOffset = 8
 		addrLen = 16
-		network = ipnet.IP.To16()
+		a := masked.Addr().As16()
+		network = a[:]
 	} else {
 		addrOffset = 12
 		addrLen = 4
-		network = ipnet.IP.To4()
+		a := masked.Addr().As4()
+		network = a[:]
 	}
+
+	mask := prefixToMask(cidr.Bits(), int(addrLen))
 
 	return []expr.Any{
 		&expr.Payload{
@@ -145,7 +148,7 @@ func cidrExprs(cidr string, v6 bool) ([]expr.Any, error) {
 			SourceRegister: 1,
 			DestRegister:   1,
 			Len:            addrLen,
-			Mask:           []byte(ipnet.Mask),
+			Mask:           mask,
 			Xor:            make([]byte, addrLen),
 		},
 		&expr.Cmp{
@@ -154,6 +157,21 @@ func cidrExprs(cidr string, v6 bool) ([]expr.Any, error) {
 			Data:     network[:addrLen],
 		},
 	}, nil
+}
+
+// prefixToMask builds a subnet mask byte slice from a prefix length.
+func prefixToMask(bits, byteLen int) []byte {
+	mask := make([]byte, byteLen)
+	for i := range mask {
+		if bits >= 8 {
+			mask[i] = 0xff
+			bits -= 8
+		} else {
+			mask[i] = byte(0xff << (8 - bits))
+			bits = 0
+		}
+	}
+	return mask
 }
 
 // l4ProtoExprs matches the L4 protocol (TCP, UDP, ICMP).

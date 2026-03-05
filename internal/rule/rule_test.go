@@ -2,6 +2,7 @@ package rule_test
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -12,30 +13,30 @@ func TestSimpleRule(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "10.123.0.1/24",
+			CIDR:     netip.MustParsePrefix("10.123.0.1/24"),
 			Port:     22,
 			Action:   "allow",
 		},
 		{
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
 		},
 		{
 			Protocol: "icmp",
-			CIDR:     "10.124.0.0/24",
+			CIDR:     netip.MustParsePrefix("10.124.0.0/24"),
 			Action:   "allow",
 		},
 		{
 			Protocol: "icmp",
-			CIDR:     "0.0.0.0/0",
+			CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 			Action:   "block",
 		},
 		{
 			Protocol: "tcp",
-			CIDR:     "0.0.0.0/0",
+			CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 			Action:   "block",
 		},
 	}
@@ -56,7 +57,7 @@ func TestSimpleRule(t *testing.T) {
 func TestRulesWithFlags(t *testing.T) {
 	mptcpRule := rule.Rule{
 		Protocol: "tcp",
-		CIDR:     "10.123.0.1/24",
+		CIDR:     netip.MustParsePrefix("10.123.0.1/24"),
 		Port:     22,
 		Action:   "allow",
 		Flags: []string{
@@ -66,7 +67,7 @@ func TestRulesWithFlags(t *testing.T) {
 
 	invalidMultiTCPOptRule := rule.Rule{
 		Protocol: "tcp",
-		CIDR:     "10.123.0.1/24",
+		CIDR:     netip.MustParsePrefix("10.123.0.1/24"),
 		Port:     3066,
 		Action:   "block",
 		Flags: []string{
@@ -77,7 +78,7 @@ func TestRulesWithFlags(t *testing.T) {
 
 	tcpFlagsInICMPRule := rule.Rule{
 		Protocol: "icmp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Port:     4200,
 		Action:   "block",
 		Flags: []string{
@@ -104,7 +105,7 @@ func TestRulesWithFlags(t *testing.T) {
 func TestSourceSetRulespec(t *testing.T) {
 	r := rule.Rule{
 		Protocol:  "tcp",
-		CIDR:      "0.0.0.0/0",
+		CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 		Port:      80,
 		Action:    "allow",
 		SourceSet: "trusted-ips",
@@ -133,7 +134,7 @@ func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMP rule with icmp:echo-request
 	validICMP := rule.Rule{
 		Protocol: "icmp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Action:   "allow",
 		Flags:    []string{"icmp:echo-request"},
 	}
@@ -144,7 +145,7 @@ func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMPv6 rule with icmpv6:echo-request
 	validICMPv6 := rule.Rule{
 		Protocol: "icmpv6",
-		CIDR:     "::/0",
+		CIDR:     netip.MustParsePrefix("::/0"),
 		Action:   "allow",
 		Flags:    []string{"icmpv6:echo-request"},
 	}
@@ -155,7 +156,7 @@ func TestICMPTypeFlags(t *testing.T) {
 	// ICMP type on TCP rule → error
 	icmpOnTCP := rule.Rule{
 		Protocol: "tcp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Port:     80,
 		Action:   "allow",
 		Flags:    []string{"icmp:echo-request"},
@@ -167,7 +168,7 @@ func TestICMPTypeFlags(t *testing.T) {
 	// Unknown ICMP type → error
 	unknownType := rule.Rule{
 		Protocol: "icmp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Action:   "allow",
 		Flags:    []string{"icmp:nonexistent"},
 	}
@@ -178,7 +179,7 @@ func TestICMPTypeFlags(t *testing.T) {
 	// Multiple ICMP types → error
 	multiType := rule.Rule{
 		Protocol: "icmp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Action:   "allow",
 		Flags:    []string{"icmp:echo-request", "icmp:echo-reply"},
 	}

@@ -4,6 +4,7 @@ package chain
 
 import (
 	"context"
+	"net/netip"
 	"runtime"
 	"testing"
 
@@ -41,7 +42,7 @@ func nftTestConn(t *testing.T) *nftables.Conn {
 func TestRuleToExprsTCPAllow(t *testing.T) {
 	r := rule.Rule{
 		Protocol: "tcp",
-		CIDR:     "10.0.0.0/24",
+		CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
 		Port:     80,
 		Action:   "allow",
 	}
@@ -83,7 +84,7 @@ func TestRuleToExprsTCPAllow(t *testing.T) {
 func TestRuleToExprsBlock(t *testing.T) {
 	r := rule.Rule{
 		Protocol: "tcp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Action:   "block",
 	}
 
@@ -105,7 +106,7 @@ func TestRuleToExprsBlock(t *testing.T) {
 func TestRuleToExprsPortRange(t *testing.T) {
 	r := rule.Rule{
 		Protocol:  "tcp",
-		CIDR:      "0.0.0.0/0",
+		CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 		StartPort: 1024,
 		EndPort:   4096,
 		Action:    "allow",
@@ -136,7 +137,7 @@ func TestRuleToExprsPortRange(t *testing.T) {
 func TestRuleToExprsZeroCIDR(t *testing.T) {
 	r := rule.Rule{
 		Protocol: "tcp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Port:     443,
 		Action:   "allow",
 	}
@@ -202,13 +203,13 @@ func TestNFTablesConfigureChain(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "10.0.0.0/24",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
 			Port:     22,
 			Action:   "allow",
 		},
 		{
 			Protocol: "tcp",
-			CIDR:     "0.0.0.0/0",
+			CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 			Action:   "block",
 		},
 	}
@@ -260,7 +261,7 @@ func TestNFTablesIdempotent(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "10.0.0.0/24",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
 			Port:     22,
 			Action:   "allow",
 		},
@@ -317,7 +318,7 @@ func TestNFTablesDeleteChain(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "10.0.0.0/24",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
 			Port:     22,
 			Action:   "allow",
 		},
@@ -359,7 +360,7 @@ func TestNFTablesIPv6(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol:  "tcpv6",
-			CIDR:      "::/0",
+			CIDR:      netip.MustParsePrefix("::/0"),
 			Action:    "allow",
 			StartPort: 1024,
 			EndPort:   4096,
@@ -417,7 +418,7 @@ func TestNFTablesGoto(t *testing.T) {
 	rules1 := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "10.0.0.0/24",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
 			Port:     22,
 			Action:   "allow",
 		},
@@ -426,7 +427,7 @@ func TestNFTablesGoto(t *testing.T) {
 	rules2 := []rule.Rule{
 		{
 			Protocol: "tcp",
-			CIDR:     "0.0.0.0/0",
+			CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 			Action:   "block",
 		},
 	}
@@ -480,7 +481,7 @@ func TestNFTablesGoto(t *testing.T) {
 func TestRuleToExprsICMPType(t *testing.T) {
 	r := rule.Rule{
 		Protocol: "icmp",
-		CIDR:     "0.0.0.0/0",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
 		Action:   "allow",
 		Flags:    []string{"icmp:echo-request"},
 	}
@@ -530,7 +531,7 @@ func TestRuleToExprsICMPType(t *testing.T) {
 func TestRuleToExprsSourceSet(t *testing.T) {
 	r := rule.Rule{
 		Protocol:  "tcp",
-		CIDR:      "0.0.0.0/0",
+		CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 		Port:      80,
 		Action:    "allow",
 		SourceSet: "trusted",
@@ -592,7 +593,7 @@ func TestNFTablesConfigureSet(t *testing.T) {
 	// Type-assert to SetManager.
 	sm := cm.(SetManager)
 
-	if err := sm.ConfigureSet(ctx, "trusted", []string{"10.0.0.0/24", "192.168.1.0/24"}); err != nil {
+	if err := sm.ConfigureSet(ctx, "trusted", []netip.Prefix{netip.MustParsePrefix("10.0.0.0/24"), netip.MustParsePrefix("192.168.1.0/24")}); err != nil {
 		t.Fatalf("ConfigureSet: %v", err)
 	}
 
@@ -603,7 +604,7 @@ func TestNFTablesConfigureSet(t *testing.T) {
 	rules := []rule.Rule{
 		{
 			Protocol:  "tcp",
-			CIDR:      "0.0.0.0/0",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
 			Port:      443,
 			Action:    "allow",
 			SourceSet: "trusted",

@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"io"
+	"net/netip"
 
 	"github.com/ZentriaMC/swdfw/internal/rule"
 )
@@ -25,7 +26,7 @@ type ChainManager interface {
 
 // SetManager manages named IP sets that rules can reference via SourceSet.
 type SetManager interface {
-	ConfigureSet(ctx context.Context, name string, cidrs []string) error
+	ConfigureSet(ctx context.Context, name string, cidrs []netip.Prefix) error
 	DeleteSet(ctx context.Context, name string) error
 }
 
