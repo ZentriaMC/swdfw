@@ -273,6 +273,14 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 		}
 	}
 
+	// Interface matching.
+	if r.SourceInterface != "" {
+		s = append(s, "-i", r.SourceInterface)
+	}
+	if r.DestinationInterface != "" {
+		s = append(s, "-o", r.DestinationInterface)
+	}
+
 	if r.SourceSet != "" {
 		s = append(s, "-m", "set", "--match-set", r.SourceSet, "src")
 	}

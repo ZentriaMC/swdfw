@@ -364,6 +364,35 @@ func TestMACSourceToRulespec(t *testing.T) {
 	}
 }
 
+func TestInterfaceToRulespec(t *testing.T) {
+	r := rule.Rule{
+		Protocol:             "tcp",
+		CIDR:                 netip.MustParsePrefix("0.0.0.0/0"),
+		Port:                 80,
+		Action:               "allow",
+		SourceInterface:      "eth0",
+		DestinationInterface: "eth1",
+	}
+	spec, err := r.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined := strings.Join(spec, " ")
+	if !strings.Contains(joined, "-i eth0") {
+		t.Fatalf("expected -i eth0, got: %s", joined)
+	}
+	if !strings.Contains(joined, "-o eth1") {
+		t.Fatalf("expected -o eth1, got: %s", joined)
+	}
+
+	// Verify interfaces appear before verdict (-j)
+	iIdx := strings.Index(joined, "-i eth0")
+	jIdx := strings.Index(joined, "-j")
+	if iIdx > jIdx {
+		t.Fatalf("expected -i before -j, -i at %d, -j at %d", iIdx, jIdx)
+	}
+}
+
 func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMP rule with icmp:echo-request
 	validICMP := rule.Rule{
