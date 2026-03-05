@@ -5,7 +5,10 @@ package chain
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 	"net/netip"
+	"strconv"
+	"strings"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -79,6 +82,12 @@ func ruleToExprs(r rule.Rule, sourceSet *nftables.Set) ([]expr.Any, error) {
 		exprs = append(exprs, srcPortExprs(r.SourcePort, r.SourceStartPort, r.SourceEndPort)...)
 	}
 
+	// Match TCP flags and TCP options (TCP only).
+	if protoName == "tcp" {
+		exprs = append(exprs, tcpFlagExprs(r.Flags)...)
+		exprs = append(exprs, tcpOptExprs(r.Flags)...)
+	}
+
 	// Match ICMP type.
 	switch r.Protocol {
 	case rule.ProtocolICMP:
@@ -98,6 +107,13 @@ func ruleToExprs(r rule.Rule, sourceSet *nftables.Set) ([]expr.Any, error) {
 	if r.DestinationInterface != "" {
 		exprs = append(exprs, ifnameExprs(expr.MetaKeyOIFNAME, r.DestinationInterface)...)
 	}
+
+	// Match MAC source address.
+	macExprs, err := macSrcExprs(r.Flags)
+	if err != nil {
+		return nil, err
+	}
+	exprs = append(exprs, macExprs...)
 
 	// Verdict.
 	verdict, err := verdictExpr(r.Action)
@@ -295,6 +311,131 @@ func icmpTypeExprs(flags []string, typeCodes map[string]uint8) []expr.Any {
 		}
 	}
 	return nil
+}
+
+// tcpFlagExprs builds expressions to match TCP flags using bitwise AND.
+// TCP flags byte is at transport header offset 13, length 1.
+func tcpFlagExprs(flags []string) []expr.Any {
+	bits := rule.TCPFlagBits()
+	var mask uint8
+	negated := false
+
+	for _, flag := range flags {
+		clean, neg := rule.ParseFlag(flag)
+		name, ok := strings.CutPrefix(clean, "tcp:")
+		if !ok {
+			continue
+		}
+		b, valid := bits[name]
+		if !valid {
+			continue
+		}
+		mask |= b
+		if neg {
+			negated = true
+		}
+	}
+
+	if mask == 0 {
+		return nil
+	}
+
+	op := expr.CmpOpEq
+	if negated {
+		op = expr.CmpOpNeq
+	}
+
+	return []expr.Any{
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseTransportHeader,
+			Offset:       13,
+			Len:          1,
+		},
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            1,
+			Mask:           []byte{mask},
+			Xor:            []byte{0x00},
+		},
+		&expr.Cmp{
+			Op:       op,
+			Register: 1,
+			Data:     []byte{mask},
+		},
+	}
+}
+
+// tcpOptExprs builds expressions to check TCP option presence using Exthdr.
+func tcpOptExprs(flags []string) []expr.Any {
+	for _, flag := range flags {
+		clean, negated := rule.ParseFlag(flag)
+		optStr, ok := strings.CutPrefix(clean, "tcpopt:")
+		if !ok {
+			continue
+		}
+		kind, err := strconv.ParseUint(optStr, 10, 8)
+		if err != nil {
+			continue
+		}
+
+		op := expr.CmpOpEq
+		if negated {
+			op = expr.CmpOpNeq
+		}
+
+		return []expr.Any{
+			&expr.Exthdr{
+				DestRegister: 1,
+				Type:         uint8(kind),
+				Op:           expr.ExthdrOpTcpopt,
+				Flags:        1, // NFT_EXTHDR_F_PRESENT
+			},
+			&expr.Cmp{
+				Op:       op,
+				Register: 1,
+				Data:     []byte{1},
+			},
+		}
+	}
+	return nil
+}
+
+// macSrcExprs builds expressions to match source MAC address.
+// Source MAC is at link layer header offset 6, length 6.
+func macSrcExprs(flags []string) ([]expr.Any, error) {
+	for _, flag := range flags {
+		clean, negated := rule.ParseFlag(flag)
+		addr, ok := strings.CutPrefix(clean, "mac:")
+		if !ok {
+			continue
+		}
+		hw, err := net.ParseMAC(addr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid MAC address %q: %w", addr, err)
+		}
+
+		op := expr.CmpOpEq
+		if negated {
+			op = expr.CmpOpNeq
+		}
+
+		return []expr.Any{
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseLLHeader,
+				Offset:       6,
+				Len:          uint32(len(hw)),
+			},
+			&expr.Cmp{
+				Op:       op,
+				Register: 1,
+				Data:     hw,
+			},
+		}, nil
+	}
+	return nil, nil
 }
 
 func uint16Bytes(v uint16) []byte {

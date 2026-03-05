@@ -206,6 +206,164 @@ func TestNegatedICMPv6ToRulespec(t *testing.T) {
 	}
 }
 
+func TestTCPFlagsToRulespec(t *testing.T) {
+	// Single TCP flag.
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"tcp:syn"},
+	}
+	spec, err := r.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined := strings.Join(spec, " ")
+	if !strings.Contains(joined, "--tcp-flags SYN SYN") {
+		t.Fatalf("expected --tcp-flags SYN SYN, got: %s", joined)
+	}
+
+	// Combined TCP flags.
+	r2 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"tcp:syn", "tcp:ack"},
+	}
+	spec2, err := r2.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined2 := strings.Join(spec2, " ")
+	if !strings.Contains(joined2, "--tcp-flags SYN,ACK SYN,ACK") {
+		t.Fatalf("expected --tcp-flags SYN,ACK SYN,ACK, got: %s", joined2)
+	}
+
+	// Negated TCP flag.
+	r3 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"!tcp:syn"},
+	}
+	spec3, err := r3.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined3 := strings.Join(spec3, " ")
+	if !strings.Contains(joined3, "! --tcp-flags SYN SYN") {
+		t.Fatalf("expected ! --tcp-flags SYN SYN, got: %s", joined3)
+	}
+
+	// TCP flag on ICMP rule → invalid.
+	r4 := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Action:   "block",
+		Flags:    []string{"tcp:syn"},
+	}
+	if err := r4.Validate(); err == nil {
+		t.Error("expected tcp flag on icmp rule to be invalid")
+	}
+}
+
+func TestTCPOptionToRulespec(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"tcpopt:30"},
+	}
+	spec, err := r.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined := strings.Join(spec, " ")
+	if !strings.Contains(joined, "--tcp-option 30") {
+		t.Fatalf("expected --tcp-option 30, got: %s", joined)
+	}
+
+	// Negated.
+	r2 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"!tcpopt:30"},
+	}
+	spec2, err := r2.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined2 := strings.Join(spec2, " ")
+	if !strings.Contains(joined2, "! --tcp-option 30") {
+		t.Fatalf("expected ! --tcp-option 30, got: %s", joined2)
+	}
+}
+
+func TestMACSourceToRulespec(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"mac:00:11:22:33:44:55"},
+	}
+	spec, err := r.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined := strings.Join(spec, " ")
+	if !strings.Contains(joined, "-m mac --mac-source 00:11:22:33:44:55") {
+		t.Fatalf("expected -m mac --mac-source 00:11:22:33:44:55, got: %s", joined)
+	}
+
+	// Negated.
+	r2 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"!mac:00:11:22:33:44:55"},
+	}
+	spec2, err := r2.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined2 := strings.Join(spec2, " ")
+	if !strings.Contains(joined2, "-m mac ! --mac-source 00:11:22:33:44:55") {
+		t.Fatalf("expected -m mac ! --mac-source 00:11:22:33:44:55, got: %s", joined2)
+	}
+
+	// Invalid MAC → validation error.
+	r3 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"mac:invalid"},
+	}
+	if err := r3.Validate(); err == nil {
+		t.Error("expected invalid MAC address to fail validation")
+	}
+
+	// Multiple MACs → error.
+	r4 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"mac:00:11:22:33:44:55", "mac:aa:bb:cc:dd:ee:ff"},
+	}
+	if err := r4.Validate(); err == nil {
+		t.Error("expected multiple MAC sources to fail validation")
+	}
+}
+
 func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMP rule with icmp:echo-request
 	validICMP := rule.Rule{

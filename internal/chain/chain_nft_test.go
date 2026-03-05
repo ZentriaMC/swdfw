@@ -4,6 +4,7 @@ package chain
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"runtime"
 	"testing"
@@ -779,5 +780,153 @@ func TestNFTablesCustomTable(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected chain in custom-table")
+	}
+}
+
+func TestRuleToExprsTCPFlags(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"tcp:syn"},
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	// Find Payload at transport header offset 13 + Bitwise AND 0x02 + Cmp Eq 0x02.
+	foundPayload := false
+	foundBitwise := false
+	foundCmp := false
+	for i, e := range exprs {
+		p, ok := e.(*expr.Payload)
+		if !ok || p.Base != expr.PayloadBaseTransportHeader || p.Offset != 13 || p.Len != 1 {
+			continue
+		}
+		foundPayload = true
+		if i+1 < len(exprs) {
+			if bw, ok := exprs[i+1].(*expr.Bitwise); ok && len(bw.Mask) == 1 && bw.Mask[0] == 0x02 {
+				foundBitwise = true
+			}
+		}
+		if i+2 < len(exprs) {
+			if c, ok := exprs[i+2].(*expr.Cmp); ok && c.Op == expr.CmpOpEq && len(c.Data) == 1 && c.Data[0] == 0x02 {
+				foundCmp = true
+			}
+		}
+	}
+	if !foundPayload {
+		t.Fatal("expected Payload at transport header offset 13")
+	}
+	if !foundBitwise {
+		t.Fatal("expected Bitwise AND with mask 0x02")
+	}
+	if !foundCmp {
+		t.Fatal("expected Cmp Eq 0x02")
+	}
+}
+
+func TestRuleToExprsTCPOption(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"tcpopt:30"},
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	foundExthdr := false
+	foundCmp := false
+	for i, e := range exprs {
+		eh, ok := e.(*expr.Exthdr)
+		if !ok || eh.Op != expr.ExthdrOpTcpopt || eh.Type != 30 {
+			continue
+		}
+		foundExthdr = true
+		if i+1 < len(exprs) {
+			if c, ok := exprs[i+1].(*expr.Cmp); ok && c.Op == expr.CmpOpEq && len(c.Data) == 1 && c.Data[0] == 1 {
+				foundCmp = true
+			}
+		}
+	}
+	if !foundExthdr {
+		t.Fatal("expected Exthdr TcpOpt type 30")
+	}
+	if !foundCmp {
+		t.Fatal("expected Cmp Eq 1 for TCP option presence")
+	}
+
+	// Negated.
+	r2 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"!tcpopt:30"},
+	}
+	exprs2, err := ruleToExprs(r2, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs negated: %v", err)
+	}
+	for i, e := range exprs2 {
+		eh, ok := e.(*expr.Exthdr)
+		if !ok || eh.Op != expr.ExthdrOpTcpopt || eh.Type != 30 {
+			continue
+		}
+		if i+1 < len(exprs2) {
+			if c, ok := exprs2[i+1].(*expr.Cmp); ok {
+				if c.Op != expr.CmpOpNeq {
+					t.Fatalf("expected CmpOpNeq for negated TCP option, got %v", c.Op)
+				}
+				break
+			}
+		}
+	}
+}
+
+func TestRuleToExprsMACSource(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"mac:00:11:22:33:44:55"},
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	expectedMAC, _ := net.ParseMAC("00:11:22:33:44:55")
+	foundPayload := false
+	foundCmp := false
+	for i, e := range exprs {
+		p, ok := e.(*expr.Payload)
+		if !ok || p.Base != expr.PayloadBaseLLHeader || p.Offset != 6 || p.Len != 6 {
+			continue
+		}
+		foundPayload = true
+		if i+1 < len(exprs) {
+			if c, ok := exprs[i+1].(*expr.Cmp); ok && c.Op == expr.CmpOpEq {
+				if string(c.Data) == string(expectedMAC) {
+					foundCmp = true
+				}
+			}
+		}
+	}
+	if !foundPayload {
+		t.Fatal("expected Payload LLHeader offset 6 len 6")
+	}
+	if !foundCmp {
+		t.Fatal("expected Cmp Eq with MAC bytes")
 	}
 }

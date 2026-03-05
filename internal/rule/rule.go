@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Action represents a firewall rule verdict.
@@ -70,10 +71,6 @@ type Rule struct {
 	SourcePort      uint16 `json:"source_port"`
 	SourceStartPort uint16 `json:"source_start"`
 
-	// TODO:
-	// --tcp-flags (SYN, ACK etc.) also prefix with !
-	// --tcp-option option:<value> also prefix with !
-	// --mac-source (mac) also prefix with !
 	Flags                []string `json:"flags"`
 	SourceInterface      string   `json:"source_interface"`
 	DestinationInterface string   `json:"destination_interface"`
@@ -224,6 +221,54 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 				} else {
 					s = append(s, "--icmpv6-type", typeName)
 				}
+			}
+		}
+	}
+
+	// TCP flags (--tcp-flags MASK MATCH).
+	if r.ProtocolName() == "tcp" {
+		var tcpFlagNames []string
+		tcpFlagsNegated := false
+		for _, flag := range r.Flags {
+			clean, negated := ParseFlag(flag)
+			if name, ok := strings.CutPrefix(clean, tcpPrefix); ok {
+				upper := strings.Map(unicode.ToUpper, name)
+				tcpFlagNames = append(tcpFlagNames, upper)
+				if negated {
+					tcpFlagsNegated = true
+				}
+			}
+		}
+		if len(tcpFlagNames) > 0 {
+			mask := strings.Join(tcpFlagNames, ",")
+			if tcpFlagsNegated {
+				s = append(s, "!", "--tcp-flags", mask, mask)
+			} else {
+				s = append(s, "--tcp-flags", mask, mask)
+			}
+		}
+
+		// TCP option (--tcp-option N).
+		for _, flag := range r.Flags {
+			clean, negated := ParseFlag(flag)
+			if optNum, ok := strings.CutPrefix(clean, tcpOptPrefix); ok {
+				if negated {
+					s = append(s, "!", "--tcp-option", optNum)
+				} else {
+					s = append(s, "--tcp-option", optNum)
+				}
+			}
+		}
+	}
+
+	// MAC source (-m mac --mac-source <addr>).
+	for _, flag := range r.Flags {
+		clean, negated := ParseFlag(flag)
+		if addr, ok := strings.CutPrefix(clean, macPrefix); ok {
+			if negated {
+				s = append(s, "-m", "mac", "!", "--mac-source", addr)
+			} else {
+				s = append(s, "-m", "mac", "--mac-source", addr)
 			}
 		}
 	}

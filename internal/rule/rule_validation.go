@@ -3,6 +3,7 @@ package rule
 import (
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 )
 
@@ -35,8 +36,24 @@ func (r *Rule) validateFlags() (err error) {
 
 	hasTCPOpt := false
 	hasICMPType := false
+	hasMACSource := false
 	for _, flag := range r.Flags {
 		clean, _ := ParseFlag(flag)
+
+		// MAC source flags are valid for all protocols.
+		if addr, ok := strings.CutPrefix(clean, macPrefix); ok {
+			if _, macErr := net.ParseMAC(addr); macErr != nil {
+				err = fmt.Errorf("invalid MAC address in flag '%s': %v", flag, macErr)
+				return
+			}
+			if hasMACSource {
+				err = errors.New("cannot specify multiple mac source addresses in a single rule")
+				return
+			}
+			hasMACSource = true
+			continue
+		}
+
 		if !containsFlag(validFlags, clean) && !containsFlagU8(validICMP, clean) {
 			err = fmt.Errorf("unsupported flag '%s' for protocol %s", flag, proto)
 			return

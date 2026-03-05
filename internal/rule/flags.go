@@ -3,6 +3,8 @@ package rule
 const (
 	icmpPrefix   = "icmp:"
 	icmpv6Prefix = "icmpv6:"
+	tcpPrefix    = "tcp:"
+	macPrefix    = "mac:"
 )
 
 var (
@@ -52,6 +54,17 @@ var (
 	}
 )
 
+var tcpFlagBits = map[string]uint8{
+	"fin":  0x01,
+	"syn":  0x02,
+	"rst":  0x04,
+	"psh":  0x08,
+	"ack":  0x10,
+	"urg":  0x20,
+	"all":  0x3f,
+	"none": 0x00,
+}
+
 // ICMPTypeCodes returns the ICMP type code map for use by backends.
 func ICMPTypeCodes() map[string]uint8 {
 	return validICMPTypes
@@ -60,4 +73,9 @@ func ICMPTypeCodes() map[string]uint8 {
 // ICMPV6TypeCodes returns the ICMPv6 type code map for use by backends.
 func ICMPV6TypeCodes() map[string]uint8 {
 	return validICMPV6Types
+}
+
+// TCPFlagBits returns the TCP flag name → bit value map for use by backends.
+func TCPFlagBits() map[string]uint8 {
+	return tcpFlagBits
 }
