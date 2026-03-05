@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"go/format"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -106,7 +105,7 @@ func entrypoint() (err error) {
 		meaning = meaningNormalizer.ReplaceAllString(meaningRaw, " ")
 
 		for _, kind := range kinds {
-			buf.WriteString(fmt.Sprintf("\t(tcpOptPrefix+\"%d\"): true, // %s\n", kind, meaning))
+			fmt.Fprintf(&buf, "\t(tcpOptPrefix+\"%d\"): true, // %s\n", kind, meaning)
 		}
 	}
 	buf.WriteString("}\n")
@@ -117,7 +116,7 @@ func entrypoint() (err error) {
 		return
 	}
 
-	err = ioutil.WriteFile(targetFileName, fileBuf, 0644)
+	err = os.WriteFile(targetFileName, fileBuf, 0644)
 
 	return
 }
