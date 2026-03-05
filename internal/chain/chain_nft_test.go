@@ -570,6 +570,47 @@ func TestRuleToExprsICMPTypeNegated(t *testing.T) {
 	}
 }
 
+func TestRuleToExprsICMPv6Type(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "icmpv6",
+		CIDR:     netip.MustParsePrefix("::/0"),
+		Action:   "allow",
+		Flags:    []string{"icmpv6:echo-request"},
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	// ICMPv6 echo-request = type 128.
+	foundPayload := false
+	foundCmp := false
+	for i, e := range exprs {
+		p, ok := e.(*expr.Payload)
+		if !ok {
+			continue
+		}
+		if p.Base != expr.PayloadBaseTransportHeader || p.Offset != 0 || p.Len != 1 {
+			continue
+		}
+		foundPayload = true
+		if i+1 < len(exprs) {
+			if c, ok := exprs[i+1].(*expr.Cmp); ok {
+				if c.Op == expr.CmpOpEq && len(c.Data) == 1 && c.Data[0] == 128 {
+					foundCmp = true
+				}
+			}
+		}
+	}
+	if !foundPayload {
+		t.Fatal("expected Payload expression for ICMPv6 type at transport header offset 0")
+	}
+	if !foundCmp {
+		t.Fatal("expected Cmp expression with ICMPv6 type code 128 (echo-request)")
+	}
+}
+
 func TestRuleToExprsSourceSet(t *testing.T) {
 	r := rule.Rule{
 		Protocol:  "tcp",

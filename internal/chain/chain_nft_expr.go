@@ -80,12 +80,13 @@ func ruleToExprs(r rule.Rule, sourceSet *nftables.Set) ([]expr.Any, error) {
 	}
 
 	// Match ICMP type.
-	if protoName == "icmp" {
-		typeCodes := rule.ICMPTypeCodes()
-		if r.IsV6() {
-			typeCodes = rule.ICMPV6TypeCodes()
+	switch r.Protocol {
+	case rule.ProtocolICMP:
+		if icmpExprs := icmpTypeExprs(r.Flags, rule.ICMPTypeCodes()); icmpExprs != nil {
+			exprs = append(exprs, icmpExprs...)
 		}
-		if icmpExprs := icmpTypeExprs(r.Flags, typeCodes); icmpExprs != nil {
+	case rule.ProtocolICMPv6:
+		if icmpExprs := icmpTypeExprs(r.Flags, rule.ICMPV6TypeCodes()); icmpExprs != nil {
 			exprs = append(exprs, icmpExprs...)
 		}
 	}
