@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/netip"
-	"strings"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -270,10 +269,15 @@ func verdictExpr(action rule.Action) (expr.Any, error) {
 
 // icmpTypeExprs scans flags for an ICMP type prefix and returns payload+cmp
 // expressions matching the ICMP type byte at transport header offset 0.
+// A leading '!' on the flag produces a CmpOpNeq (match everything except).
 func icmpTypeExprs(flags []string, typeCodes map[string]uint8) []expr.Any {
 	for _, flag := range flags {
-		flagLower := strings.ToLower(flag)
-		if code, ok := typeCodes[flagLower]; ok {
+		clean, negated := rule.ParseFlag(flag)
+		if code, ok := typeCodes[clean]; ok {
+			op := expr.CmpOpEq
+			if negated {
+				op = expr.CmpOpNeq
+			}
 			return []expr.Any{
 				&expr.Payload{
 					DestRegister: 1,
@@ -282,7 +286,7 @@ func icmpTypeExprs(flags []string, typeCodes map[string]uint8) []expr.Any {
 					Len:          1,
 				},
 				&expr.Cmp{
-					Op:       expr.CmpOpEq,
+					Op:       op,
 					Register: 1,
 					Data:     []byte{code},
 				},

@@ -130,6 +130,82 @@ func TestSourceSetRulespec(t *testing.T) {
 	}
 }
 
+func TestNegatedICMPFlags(t *testing.T) {
+	// Negated ICMP flag on ICMP rule → valid
+	validNeg := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Action:   "allow",
+		Flags:    []string{"!icmp:echo-request"},
+	}
+	if err := validNeg.Validate(); err != nil {
+		t.Errorf("expected negated icmp flag to be valid: %v", err)
+	}
+
+	// Negated ICMP flag on TCP rule → invalid (wrong protocol)
+	negOnTCP := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"!icmp:echo-request"},
+	}
+	if err := negOnTCP.Validate(); err == nil {
+		t.Error("expected negated icmp flag on tcp rule to be invalid")
+	}
+
+	// Negated + positive in same rule → invalid (multiple ICMP types)
+	negPlusPosICMP := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Action:   "allow",
+		Flags:    []string{"!icmp:echo-request", "icmp:echo-reply"},
+	}
+	if err := negPlusPosICMP.Validate(); err == nil {
+		t.Error("expected negated + positive icmp types to be invalid")
+	}
+}
+
+func TestNegatedICMPToRulespec(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Action:   "allow",
+		Flags:    []string{"!icmp:echo-request"},
+	}
+
+	spec, err := r.ToRulespec("testchain")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+
+	joined := strings.Join(spec, " ")
+	expected := "! --icmp-type echo-request"
+	if !strings.Contains(joined, expected) {
+		t.Fatalf("expected rulespec to contain %q, got: %s", expected, joined)
+	}
+}
+
+func TestNegatedICMPv6ToRulespec(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "icmpv6",
+		CIDR:     netip.MustParsePrefix("::/0"),
+		Action:   "block",
+		Flags:    []string{"!icmpv6:echo-request"},
+	}
+
+	spec, err := r.ToRulespec("testchain")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+
+	joined := strings.Join(spec, " ")
+	expected := "! --icmpv6-type echo-request"
+	if !strings.Contains(joined, expected) {
+		t.Fatalf("expected rulespec to contain %q, got: %s", expected, joined)
+	}
+}
+
 func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMP rule with icmp:echo-request
 	validICMP := rule.Rule{

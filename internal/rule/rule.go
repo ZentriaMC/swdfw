@@ -73,7 +73,6 @@ type Rule struct {
 	// TODO:
 	// --tcp-flags (SYN, ACK etc.) also prefix with !
 	// --tcp-option option:<value> also prefix with !
-	// --icmp-type (echo-reply, echo-request etc.) also prefix with !
 	// --mac-source (mac) also prefix with !
 	Flags                []string `json:"flags"`
 	SourceInterface      string   `json:"source_interface"`
@@ -204,19 +203,29 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 	}
 
 	// ICMP type matching.
-	switch r.ProtocolName() {
-	case "icmp":
+	switch r.Protocol {
+	case ProtocolICMP:
 		for _, flag := range r.Flags {
-			flagLower := strings.ToLower(flag)
-			if strings.HasPrefix(flagLower, icmpPrefix) {
-				s = append(s, "--icmp-type", strings.TrimPrefix(flagLower, icmpPrefix))
+			clean, negated := ParseFlag(flag)
+			if strings.HasPrefix(clean, icmpPrefix) {
+				typeName := strings.TrimPrefix(clean, icmpPrefix)
+				if negated {
+					s = append(s, "!", "--icmp-type", typeName)
+				} else {
+					s = append(s, "--icmp-type", typeName)
+				}
 			}
 		}
-	case "icmpv6":
+	case ProtocolICMPv6:
 		for _, flag := range r.Flags {
-			flagLower := strings.ToLower(flag)
-			if strings.HasPrefix(flagLower, icmpv6Prefix) {
-				s = append(s, "--icmpv6-type", strings.TrimPrefix(flagLower, icmpv6Prefix))
+			clean, negated := ParseFlag(flag)
+			if strings.HasPrefix(clean, icmpv6Prefix) {
+				typeName := strings.TrimPrefix(clean, icmpv6Prefix)
+				if negated {
+					s = append(s, "!", "--icmpv6-type", typeName)
+				} else {
+					s = append(s, "--icmpv6-type", typeName)
+				}
 			}
 		}
 	}

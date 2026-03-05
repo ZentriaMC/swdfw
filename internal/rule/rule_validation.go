@@ -6,6 +6,17 @@ import (
 	"strings"
 )
 
+// ParseFlag strips an optional leading '!' and lowercases the flag.
+// It returns the cleaned value and whether the flag was negated.
+func ParseFlag(flag string) (string, bool) {
+	negated := strings.HasPrefix(flag, "!")
+	clean := flag
+	if negated {
+		clean = flag[1:]
+	}
+	return strings.ToLower(clean), negated
+}
+
 func (r *Rule) validateFlags() (err error) {
 	proto := r.Protocol
 	validFlags := []map[string]bool{validStates}
@@ -25,13 +36,13 @@ func (r *Rule) validateFlags() (err error) {
 	hasTCPOpt := false
 	hasICMPType := false
 	for _, flag := range r.Flags {
-		flagLower := strings.ToLower(flag)
-		if !containsFlag(validFlags, flagLower) && !containsFlagU8(validICMP, flagLower) {
+		clean, _ := ParseFlag(flag)
+		if !containsFlag(validFlags, clean) && !containsFlagU8(validICMP, clean) {
 			err = fmt.Errorf("unsupported flag '%s' for protocol %s", flag, proto)
 			return
 		}
 
-		if strings.HasPrefix(flagLower, tcpOptPrefix) {
+		if strings.HasPrefix(clean, tcpOptPrefix) {
 			if hasTCPOpt {
 				err = errors.New("cannot specify multiple tcp options in a single rule")
 				return
@@ -39,7 +50,7 @@ func (r *Rule) validateFlags() (err error) {
 			hasTCPOpt = true
 		}
 
-		if strings.HasPrefix(flagLower, icmpPrefix) || strings.HasPrefix(flagLower, icmpv6Prefix) {
+		if strings.HasPrefix(clean, icmpPrefix) || strings.HasPrefix(clean, icmpv6Prefix) {
 			if hasICMPType {
 				err = errors.New("cannot specify multiple icmp types in a single rule")
 				return

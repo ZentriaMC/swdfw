@@ -528,6 +528,48 @@ func TestRuleToExprsICMPType(t *testing.T) {
 	}
 }
 
+func TestRuleToExprsICMPTypeNegated(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "icmp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Action:   "allow",
+		Flags:    []string{"!icmp:echo-request"},
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	// Find a Payload at transport header offset 0 with Len 1
+	// followed by a CmpOpNeq with ICMP type code 8 (echo-request).
+	foundPayload := false
+	foundCmp := false
+	for i, e := range exprs {
+		p, ok := e.(*expr.Payload)
+		if !ok {
+			continue
+		}
+		if p.Base != expr.PayloadBaseTransportHeader || p.Offset != 0 || p.Len != 1 {
+			continue
+		}
+		foundPayload = true
+		if i+1 < len(exprs) {
+			if c, ok := exprs[i+1].(*expr.Cmp); ok {
+				if c.Op == expr.CmpOpNeq && len(c.Data) == 1 && c.Data[0] == 8 {
+					foundCmp = true
+				}
+			}
+		}
+	}
+	if !foundPayload {
+		t.Fatal("expected Payload expression for ICMP type at transport header offset 0")
+	}
+	if !foundCmp {
+		t.Fatal("expected Cmp expression with CmpOpNeq and ICMP type code 8 (echo-request)")
+	}
+}
+
 func TestRuleToExprsSourceSet(t *testing.T) {
 	r := rule.Rule{
 		Protocol:  "tcp",
