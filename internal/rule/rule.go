@@ -207,8 +207,7 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 	case ProtocolICMP:
 		for _, flag := range r.Flags {
 			clean, negated := ParseFlag(flag)
-			if strings.HasPrefix(clean, icmpPrefix) {
-				typeName := strings.TrimPrefix(clean, icmpPrefix)
+			if typeName, ok := strings.CutPrefix(clean, icmpPrefix); ok {
 				if negated {
 					s = append(s, "!", "--icmp-type", typeName)
 				} else {
@@ -219,8 +218,7 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 	case ProtocolICMPv6:
 		for _, flag := range r.Flags {
 			clean, negated := ParseFlag(flag)
-			if strings.HasPrefix(clean, icmpv6Prefix) {
-				typeName := strings.TrimPrefix(clean, icmpv6Prefix)
+			if typeName, ok := strings.CutPrefix(clean, icmpv6Prefix); ok {
 				if negated {
 					s = append(s, "!", "--icmpv6-type", typeName)
 				} else {
