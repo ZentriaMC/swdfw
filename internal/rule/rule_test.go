@@ -364,6 +364,43 @@ func TestMACSourceToRulespec(t *testing.T) {
 	}
 }
 
+func TestSourcePortToRulespec(t *testing.T) {
+	// Single source port.
+	r := rule.Rule{
+		Protocol:   "tcp",
+		CIDR:       netip.MustParsePrefix("0.0.0.0/0"),
+		Port:       80,
+		SourcePort: 12345,
+		Action:     "allow",
+	}
+	spec, err := r.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined := strings.Join(spec, " ")
+	if !strings.Contains(joined, "--sport 12345") {
+		t.Fatalf("expected --sport 12345, got: %s", joined)
+	}
+
+	// Source port range.
+	r2 := rule.Rule{
+		Protocol:        "tcp",
+		CIDR:            netip.MustParsePrefix("0.0.0.0/0"),
+		Port:            80,
+		SourceStartPort: 1024,
+		SourceEndPort:   4096,
+		Action:          "allow",
+	}
+	spec2, err := r2.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined2 := strings.Join(spec2, " ")
+	if !strings.Contains(joined2, "--sport 1024:4096") {
+		t.Fatalf("expected --sport 1024:4096, got: %s", joined2)
+	}
+}
+
 func TestInterfaceToRulespec(t *testing.T) {
 	r := rule.Rule{
 		Protocol:             "tcp",

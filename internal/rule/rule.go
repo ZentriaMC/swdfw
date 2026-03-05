@@ -199,6 +199,12 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 		s = append(s, "--dport", fmt.Sprintf("%d:%d", r.StartPort, r.EndPort))
 	}
 
+	if r.SourcePort > 0 {
+		s = append(s, "--sport", strconv.Itoa(int(r.SourcePort)))
+	} else if r.SourceStartPort > 0 {
+		s = append(s, "--sport", fmt.Sprintf("%d:%d", r.SourceStartPort, r.SourceEndPort))
+	}
+
 	// ICMP type matching.
 	switch r.Protocol {
 	case ProtocolICMP:
