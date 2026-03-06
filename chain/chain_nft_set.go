@@ -81,8 +81,13 @@ func broadcastPlusOne(prefix netip.Prefix) []byte {
 
 	b := n.Bytes()
 	result := make([]byte, byteLen)
-	// Right-align into result (big.Int.Bytes may be shorter).
-	copy(result[len(result)-len(b):], b)
+	if len(b) <= byteLen {
+		// Right-align into result (big.Int.Bytes may be shorter).
+		copy(result[byteLen-len(b):], b)
+	}
+	// else: overflow (e.g. /0 prefix) — result stays all-zeros, which is
+	// the correct wrap-around end for an nftables interval covering
+	// the entire address space.
 
 	return result
 }

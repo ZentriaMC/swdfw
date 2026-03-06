@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"sort"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
@@ -95,7 +96,6 @@ func (c *ChainManagerNFTables) ConfigureChain(_ context.Context, name, parentCha
 }
 
 func (c *ChainManagerNFTables) DeleteChain(_ context.Context, name string) error {
-	delete(c.baseChains, name)
 	delete(c.chains, name)
 
 	filtered := c.chainOrder[:0]
@@ -143,9 +143,16 @@ func (c *ChainManagerNFTables) apply() error {
 	c.conn.DelTable(table)
 	table = c.conn.AddTable(table)
 
-	// Create named sets before chains.
+	// Create named sets before chains (sorted for deterministic output).
+	setNames := make([]string, 0, len(c.sets))
+	for name := range c.sets {
+		setNames = append(setNames, name)
+	}
+	sort.Strings(setNames)
+
 	setObjs := make(map[string]*nftables.Set)
-	for name, sd := range c.sets {
+	for _, name := range setNames {
+		sd := c.sets[name]
 		keyType, _ := setKeyType(sd.v6)
 		s := &nftables.Set{
 			Table:        table,
@@ -168,8 +175,15 @@ func (c *ChainManagerNFTables) apply() error {
 
 	chainObjs := make(map[string]*nftables.Chain)
 
-	// Create base chains with hooks.
-	for name, hook := range c.baseChains {
+	// Create base chains with hooks (sorted for deterministic output).
+	baseChainNames := make([]string, 0, len(c.baseChains))
+	for name := range c.baseChains {
+		baseChainNames = append(baseChainNames, name)
+	}
+	sort.Strings(baseChainNames)
+
+	for _, name := range baseChainNames {
+		hook := c.baseChains[name]
 		nftHook := hookToNFTables[hook]
 		policy := nftables.ChainPolicyAccept
 
@@ -250,7 +264,14 @@ func (c *ChainManagerNFTables) apply() error {
 			parentChildren[state.parentChain] = append(parentChildren[state.parentChain], name)
 		}
 	}
-	for parent, children := range parentChildren {
+	parentNames := make([]string, 0, len(parentChildren))
+	for parent := range parentChildren {
+		parentNames = append(parentNames, parent)
+	}
+	sort.Strings(parentNames)
+
+	for _, parent := range parentNames {
+		children := parentChildren[parent]
 		parentCh := chainObjs[parent]
 		if parentCh == nil {
 			continue

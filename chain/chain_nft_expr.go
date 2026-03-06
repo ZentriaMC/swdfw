@@ -17,10 +17,12 @@ import (
 	"github.com/ZentriaMC/swdfw/rule"
 )
 
-// nftables reject constants (not always available in x/sys/unix).
+// nftables reject constants for inet-family tables.
+// NFT_REJECT_ICMPX_UNREACH (0x2) is the reject TYPE that selects ICMPX codes.
+// NFT_REJECT_ICMPX_PORT_UNREACH (0x1) is the CODE for port-unreachable.
 const (
-	nftRejectICMPXUnreach     uint32 = 2 // NFT_REJECT_ICMPX_UNREACH
-	nftRejectICMPXPortUnreach uint8  = 1 // NFT_REJECT_ICMPX_PORT_UNREACH
+	nftRejectICMPXUnreach     = unix.NFT_REJECT_ICMPX_UNREACH
+	nftRejectICMPXPortUnreach = uint8(unix.NFT_REJECT_ICMPX_PORT_UNREACH)
 )
 
 // ruleToExprs converts a rule.Rule into a slice of nftables expressions.
@@ -114,6 +116,9 @@ func ruleToExprs(r rule.Rule, sourceSet *nftables.Set) ([]expr.Any, error) {
 		return nil, err
 	}
 	exprs = append(exprs, macExprs...)
+
+	// Match conntrack state (if configured).
+	exprs = append(exprs, conntrackStateExprs(r.Flags)...)
 
 	// Verdict.
 	verdict, err := verdictExpr(r.Action)
@@ -273,7 +278,10 @@ func ifnameExprs(key expr.MetaKey, name string) []expr.Any {
 func verdictExpr(action rule.Action) (expr.Any, error) {
 	switch action {
 	case rule.ActionAllow:
-		return &expr.Verdict{Kind: expr.VerdictAccept}, nil
+		// Use RETURN (not ACCEPT) to match iptables semantics: return to the
+		// parent chain so subsequent child chains can still evaluate the packet.
+		// ACCEPT would immediately terminate evaluation across all chains.
+		return &expr.Verdict{Kind: expr.VerdictReturn}, nil
 	case rule.ActionBlock:
 		return &expr.Reject{
 			Type: nftRejectICMPXUnreach,
@@ -436,6 +444,53 @@ func macSrcExprs(flags []string) ([]expr.Any, error) {
 		}, nil
 	}
 	return nil, nil
+}
+
+var conntrackStateBits = map[string]uint32{
+	"established": expr.CtStateBitESTABLISHED,
+	"related":     expr.CtStateBitRELATED,
+	"new":         expr.CtStateBitNEW,
+	"invalid":     expr.CtStateBitINVALID,
+}
+
+// conntrackStateExprs builds expressions to match conntrack state (ct state).
+// Scans flags for "state:<name>" entries, ORs their bitmask values, and emits
+// a Ct load + Bitwise AND + Cmp != 0 sequence.
+func conntrackStateExprs(flags []string) []expr.Any {
+	var mask uint32
+	for _, flag := range flags {
+		clean, _ := rule.ParseFlag(flag)
+		name, ok := strings.CutPrefix(clean, "state:")
+		if !ok {
+			continue
+		}
+		if bit, valid := conntrackStateBits[name]; valid {
+			mask |= bit
+		}
+	}
+
+	if mask == 0 {
+		return nil
+	}
+
+	maskBytes := make([]byte, 4)
+	binary.NativeEndian.PutUint32(maskBytes, mask)
+
+	return []expr.Any{
+		&expr.Ct{Key: expr.CtKeySTATE, Register: 1},
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            4,
+			Mask:           maskBytes,
+			Xor:            make([]byte, 4),
+		},
+		&expr.Cmp{
+			Op:       expr.CmpOpNeq,
+			Register: 1,
+			Data:     make([]byte, 4),
+		},
+	}
 }
 
 func uint16Bytes(v uint16) []byte {

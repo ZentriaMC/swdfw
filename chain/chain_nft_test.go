@@ -74,11 +74,11 @@ func TestRuleToExprsTCPAllow(t *testing.T) {
 		t.Fatal("expected Bitwise expression for /24 CIDR")
 	}
 
-	// Last expression should be Accept verdict
+	// Last expression should be Return verdict (matches iptables RETURN semantics).
 	last := exprs[len(exprs)-1]
 	v, ok := last.(*expr.Verdict)
-	if !ok || v.Kind != expr.VerdictAccept {
-		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
+	if !ok || v.Kind != expr.VerdictReturn {
+		t.Fatalf("expected Return verdict, got %T %+v", last, last)
 	}
 }
 
@@ -551,11 +551,11 @@ func TestRuleToExprsICMPType(t *testing.T) {
 		t.Fatal("expected Cmp expression with ICMP type code 8 (echo-request)")
 	}
 
-	// Last expression should still be Accept verdict
+	// Last expression should be Return verdict.
 	last := exprs[len(exprs)-1]
 	v, ok := last.(*expr.Verdict)
-	if !ok || v.Kind != expr.VerdictAccept {
-		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
+	if !ok || v.Kind != expr.VerdictReturn {
+		t.Fatalf("expected Return verdict, got %T %+v", last, last)
 	}
 }
 
@@ -687,11 +687,11 @@ func TestRuleToExprsSourceSet(t *testing.T) {
 		t.Fatal("expected Payload + Lookup expressions for source set")
 	}
 
-	// Last expression should be Accept verdict.
+	// Last expression should be Return verdict.
 	last := exprs[len(exprs)-1]
 	v, ok := last.(*expr.Verdict)
-	if !ok || v.Kind != expr.VerdictAccept {
-		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
+	if !ok || v.Kind != expr.VerdictReturn {
+		t.Fatalf("expected Return verdict, got %T %+v", last, last)
 	}
 }
 
@@ -922,6 +922,63 @@ func TestRuleToExprsTCPOption(t *testing.T) {
 	}
 }
 
+func TestRuleToExprsConntrackState(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"state:established", "state:related"},
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	foundCt := false
+	foundBitwise := false
+	for i, e := range exprs {
+		ct, ok := e.(*expr.Ct)
+		if !ok || ct.Key != expr.CtKeySTATE {
+			continue
+		}
+		foundCt = true
+		// Should be followed by Bitwise with mask = established|related = 2|4 = 6.
+		if i+1 < len(exprs) {
+			if bw, ok := exprs[i+1].(*expr.Bitwise); ok && bw.Len == 4 {
+				foundBitwise = true
+			}
+		}
+	}
+	if !foundCt {
+		t.Fatal("expected Ct expression with CtKeySTATE")
+	}
+	if !foundBitwise {
+		t.Fatal("expected Bitwise expression after Ct state load")
+	}
+}
+
+func TestRuleToExprsNoConntrackState(t *testing.T) {
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+	}
+
+	exprs, err := ruleToExprs(r, nil)
+	if err != nil {
+		t.Fatalf("ruleToExprs: %v", err)
+	}
+
+	for _, e := range exprs {
+		if _, ok := e.(*expr.Ct); ok {
+			t.Fatal("unexpected Ct expression when no state flags specified")
+		}
+	}
+}
+
 func TestRuleToExprsMACSource(t *testing.T) {
 	r := rule.Rule{
 		Protocol: "tcp",
@@ -958,5 +1015,97 @@ func TestRuleToExprsMACSource(t *testing.T) {
 	}
 	if !foundCmp {
 		t.Fatal("expected Cmp Eq with MAC bytes")
+	}
+}
+
+func TestBroadcastPlusOneSlashZero(t *testing.T) {
+	// /0 prefix: broadcast is all 0xFF, +1 overflows.
+	// Should return all-zeros (wrap-around end for interval set).
+	prefix := netip.MustParsePrefix("0.0.0.0/0")
+	result := broadcastPlusOne(prefix)
+	for i, b := range result {
+		if b != 0 {
+			t.Fatalf("expected all-zeros for /0, got byte %d = 0x%02x", i, b)
+		}
+	}
+	if len(result) != 4 {
+		t.Fatalf("expected 4 bytes, got %d", len(result))
+	}
+
+	// Same for IPv6 /0.
+	prefix6 := netip.MustParsePrefix("::/0")
+	result6 := broadcastPlusOne(prefix6)
+	for i, b := range result6 {
+		if b != 0 {
+			t.Fatalf("expected all-zeros for ::/0, got byte %d = 0x%02x", i, b)
+		}
+	}
+	if len(result6) != 16 {
+		t.Fatalf("expected 16 bytes, got %d", len(result6))
+	}
+}
+
+func TestBroadcastPlusOneNormal(t *testing.T) {
+	// /24: 10.0.0.0/24 → broadcast 10.0.0.255 → +1 = 10.0.1.0
+	prefix := netip.MustParsePrefix("10.0.0.0/24")
+	result := broadcastPlusOne(prefix)
+	expected := []byte{10, 0, 1, 0}
+	for i := range result {
+		if result[i] != expected[i] {
+			t.Fatalf("byte %d: got 0x%02x, want 0x%02x", i, result[i], expected[i])
+		}
+	}
+}
+
+func TestNFTablesDeleteChainPreservesBaseChain(t *testing.T) {
+	conn := nftTestConn(t)
+	ctx := context.Background()
+
+	cm, err := NewNFTablesManager(WithNFTConn(conn))
+	if err != nil {
+		t.Fatalf("NewNFTablesManager: %v", err)
+	}
+
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+		t.Fatalf("AddBaseChain: %v", err)
+	}
+
+	rules := []rule.Rule{
+		{
+			Protocol: "tcp",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
+			Port:     22,
+			Action:   "allow",
+		},
+	}
+
+	if err := cm.ConfigureChain(ctx, "child-rules", "base-input", "", rules); err != nil {
+		t.Fatalf("ConfigureChain: %v", err)
+	}
+
+	// Delete the child chain — base chain should survive.
+	if err := cm.DeleteChain(ctx, "child-rules"); err != nil {
+		t.Fatalf("DeleteChain: %v", err)
+	}
+
+	chains, err := conn.ListChains()
+	if err != nil {
+		t.Fatalf("ListChains: %v", err)
+	}
+
+	foundBase := false
+	for _, ch := range chains {
+		if ch.Name == "base-input" {
+			foundBase = true
+			if ch.Hooknum == nil {
+				t.Fatal("base chain lost its hook")
+			}
+		}
+		if ch.Name == "child-rules" {
+			t.Fatal("child-rules should have been deleted")
+		}
+	}
+	if !foundBase {
+		t.Fatal("base-input chain should still exist after deleting child chain")
 	}
 }
