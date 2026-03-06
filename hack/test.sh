@@ -3,30 +3,20 @@
 # Uses QEMU savevm/loadvm to cache a booted VM snapshot for fast restarts.
 #
 # Env vars:
-#   TEST_SSH_PORT      SSH port forward (default: 2223)
-#   REBUILD_SNAPSHOT   Set to 1 to force snapshot recreation
-#   KEEP_VM            Set to 1 to keep VM running after tests
+#   FCOS_HARNESS_SSH_PORT   SSH port forward (default: 2223)
+#   FCOS_HARNESS_SSH_KEY    SSH key (set below)
+#   REBUILD_SNAPSHOT        Set to 1 to force snapshot recreation
+#   KEEP_VM                 Set to 1 to keep VM running after tests
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
-work_dir="${root}/tmp/vm"
-ssh_port="${TEST_SSH_PORT:-2223}"
-ssh_key="${root}/hack/dev/dev_ed25519"
+export FCOS_HARNESS_WORK_DIR="${root}/tmp/vm"
+export FCOS_HARNESS_SSH_KEY="${root}/hack/dev/dev_ed25519"
+export FCOS_HARNESS_SSH_PORT="${FCOS_HARNESS_SSH_PORT:-2223}"
 
-snapshot_disk="${work_dir}/fcos-snapshot.qcow2"
-snapshot_name="ssh-ready"
-snapshot_hash_file="${work_dir}/snapshot.hash"
-monitor_sock="${work_dir}/qemu-monitor.sock"
-pid_file="${work_dir}/qemu.pid"
+chmod 600 "${FCOS_HARNESS_SSH_KEY}"
 
-chmod 600 "${ssh_key}"
-
-fh() {
-    fcos-harness --work-dir "${work_dir}" "$@"
-}
-fh_ssh() {
-    fh ssh --ssh-key "${ssh_key}" --ssh-port "${ssh_port}" "$@"
-}
+fh() { fcos-harness "$@"; }
 
 # ---------------------------------------------------------------------------
 # Detect target arch for Go cross-compile
@@ -59,100 +49,25 @@ if ! [ -f "${swdfw_bin}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Ensure FCOS base image
+# Boot VM (with snapshot caching for SSH-ready state)
 # ---------------------------------------------------------------------------
-fh image
-
-# ---------------------------------------------------------------------------
-# Check if a valid VM snapshot exists
-# ---------------------------------------------------------------------------
-sha256() {
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "$1" | cut -d' ' -f1
-    else
-        shasum -a 256 "$1" | cut -d' ' -f1
-    fi
-}
-
-current_hash="$(sha256 "${ign}")"
-use_snapshot=false
-
-if [ "${REBUILD_SNAPSHOT:-}" != "1" ] \
-    && [ -f "${snapshot_disk}" ] \
-    && [ -f "${snapshot_hash_file}" ] \
-    && [ "$(cat "${snapshot_hash_file}")" = "${current_hash}" ] \
-    && qemu-img snapshot -l "${snapshot_disk}" 2>/dev/null | grep -q "${snapshot_name}"; then
-    use_snapshot=true
-    echo ">>> Valid VM snapshot found, skipping boot+goss"
+rebuild_flag=()
+if [ "${REBUILD_SNAPSHOT:-}" = "1" ]; then
+    rebuild_flag=(--rebuild-snapshot)
 fi
 
-# ---------------------------------------------------------------------------
-# Create snapshot if needed: boot fresh, wait for SSH, goss, savevm, quit
-# ---------------------------------------------------------------------------
-if [ "${use_snapshot}" = false ]; then
-    echo ">>> Creating VM snapshot (first run or config changed)..."
-    rm -f "${snapshot_disk}" "${snapshot_hash_file}"
-    fh disk --base "${work_dir}/fcos.qcow2" --overlay "${snapshot_disk}"
-
-    fh start \
-        --disk "${snapshot_disk}" \
-        --ignition "${ign}" \
-        --ssh-port "${ssh_port}" \
-        --hostname swdfw-test \
-        --serial-log "${work_dir}/serial-test.log" \
-        --qmp "${monitor_sock}" \
-        --pid-file "${pid_file}"
-
-    cleanup_snapshot() {
-        fh stop --pid-file "${pid_file}" 2>/dev/null || true
-        rm -f "${monitor_sock}"
-    }
-    trap cleanup_snapshot EXIT
-
-    echo ">>> Waiting for SSH..."
-    fh_ssh --wait 180 -- true
-
-    echo ">>> Running goss validation..."
-    fh goss "${root}/hack/goss.yaml" \
-        --ssh-key "${ssh_key}" \
-        --ssh-port "${ssh_port}" \
-        --retry-timeout-secs 30
-
-    echo ">>> Saving VM snapshot '${snapshot_name}'..."
-    fh qmp --socket "${monitor_sock}" savevm "${snapshot_name}"
-
-    echo ">>> Stopping snapshot VM..."
-    fh qmp --socket "${monitor_sock}" quit
-    sleep 1
-    fh stop --pid-file "${pid_file}" 2>/dev/null || true
-    rm -f "${monitor_sock}"
-    trap - EXIT
-
-    echo "${current_hash}" > "${snapshot_hash_file}"
-    echo ">>> Snapshot created"
-fi
-
-# ---------------------------------------------------------------------------
-# Boot VM from snapshot (instant restore, ephemeral writes)
-# ---------------------------------------------------------------------------
-echo ">>> Booting test VM from snapshot..."
-fh start \
-    --disk "${snapshot_disk}" \
+echo ">>> Bringing up VM..."
+fh up \
     --ignition "${ign}" \
-    --ssh-port "${ssh_port}" \
     --hostname swdfw-test \
-    --serial-log "${work_dir}/serial-test.log" \
-    --loadvm "${snapshot_name}" \
-    --pid-file "${pid_file}"
+    --snapshot ssh-ready \
+    --snapshot-goss "${root}/hack/goss.yaml" \
+    "${rebuild_flag[@]}"
 
-cleanup() {
-    echo ">>> Shutting down test VM..."
-    fh stop --pid-file "${pid_file}" 2>/dev/null || true
-}
-trap cleanup EXIT
+trap 'fh down' EXIT
 
-echo ">>> Waiting for SSH (should be instant from snapshot)..."
-fh_ssh --wait 30 -- true
+echo ">>> Waiting for SSH..."
+fh ssh --wait 30 -- true
 
 # ---------------------------------------------------------------------------
 # Deploy swdfw binary
@@ -163,11 +78,11 @@ scp_opts=(
     -o StrictHostKeyChecking=no
     -o UserKnownHostsFile=/dev/null
     -o LogLevel=ERROR
-    -P "${ssh_port}"
-    -i "${ssh_key}"
+    -P "${FCOS_HARNESS_SSH_PORT}"
+    -i "${FCOS_HARNESS_SSH_KEY}"
 )
 scp "${scp_opts[@]}" "${swdfw_bin}" core@127.0.0.1:/tmp/swdfw
-fh_ssh -- "chmod +x /tmp/swdfw"
+fh ssh -- "chmod +x /tmp/swdfw"
 
 # ---------------------------------------------------------------------------
 # Test 1: nftables backend
@@ -175,17 +90,17 @@ fh_ssh -- "chmod +x /tmp/swdfw"
 echo ">>> Test 1: nftables backend"
 
 scp "${scp_opts[@]}" "${root}/hack/e2e/nftables.yaml" core@127.0.0.1:/tmp/nftables.yaml
-fh_ssh -- "sudo /tmp/swdfw -c /tmp/nftables.yaml"
+fh ssh -- "sudo /tmp/swdfw -c /tmp/nftables.yaml"
 
 # Verify table exists
-fh_ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain e2e-input"
-fh_ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain allow-ssh"
-fh_ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain allow-icmp"
-fh_ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain block-rest"
+fh ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain e2e-input"
+fh ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain allow-ssh"
+fh ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain allow-icmp"
+fh ssh -- "sudo nft list table inet swdfw-e2e" | grep -q "chain block-rest"
 echo "    nftables chains created OK"
 
 # Verify rules contain expected elements
-nft_output="$(fh_ssh -- "sudo nft list table inet swdfw-e2e")"
+nft_output="$(fh ssh -- "sudo nft list table inet swdfw-e2e")"
 echo "${nft_output}" | grep -q "dport 22"
 echo "${nft_output}" | grep -q "accept"
 echo "${nft_output}" | grep -q "reject\|drop"
@@ -195,11 +110,11 @@ echo "${nft_output}" | grep -q "jump block-rest"
 echo "    nftables rules verified OK"
 
 # Idempotency: run again, should succeed
-fh_ssh -- "sudo /tmp/swdfw -c /tmp/nftables.yaml"
+fh ssh -- "sudo /tmp/swdfw -c /tmp/nftables.yaml"
 echo "    nftables idempotency OK"
 
 # Clean up nftables table
-fh_ssh -- "sudo nft delete table inet swdfw-e2e"
+fh ssh -- "sudo nft delete table inet swdfw-e2e"
 
 # ---------------------------------------------------------------------------
 # Test 2: iptables backend
@@ -210,13 +125,13 @@ scp "${scp_opts[@]}" "${root}/hack/e2e/iptables.yaml" core@127.0.0.1:/tmp/iptabl
 
 # Apply and verify in a single SSH session (iptables rules may block
 # new SSH connections during the atomic swap transition)
-ipt_output="$(fh_ssh -- "sudo /tmp/swdfw -c /tmp/iptables.yaml && sudo iptables -L e2e-input -n && sudo iptables -L allow-ssh -n")"
+ipt_output="$(fh ssh -- "sudo /tmp/swdfw -c /tmp/iptables.yaml && sudo iptables -L e2e-input -n && sudo iptables -L allow-ssh -n")"
 echo "${ipt_output}" | grep -q "allow-ssh"
 echo "${ipt_output}" | grep -q "dpt:22"
 echo "    iptables chains and rules verified OK"
 
 # Idempotency: apply again, should succeed
-fh_ssh -- "sudo /tmp/swdfw -c /tmp/iptables.yaml" > /dev/null
+fh ssh -- "sudo /tmp/swdfw -c /tmp/iptables.yaml" > /dev/null
 echo "    iptables idempotency OK"
 
 # ---------------------------------------------------------------------------
@@ -224,7 +139,7 @@ echo "    iptables idempotency OK"
 # ---------------------------------------------------------------------------
 echo ">>> Test 3: dry-run mode"
 
-dry_output="$(fh_ssh -- "/tmp/swdfw -c /tmp/nftables.yaml --dry-run")"
+dry_output="$(fh ssh -- "/tmp/swdfw -c /tmp/nftables.yaml --dry-run")"
 echo "${dry_output}" | grep -q "Backend: nftables"
 echo "${dry_output}" | grep -q "e2e-input"
 echo "    dry-run OK"
@@ -236,8 +151,10 @@ echo ">>> All E2E tests passed!"
 # Keep VM running if requested
 # ---------------------------------------------------------------------------
 if [ "${KEEP_VM:-}" = "1" ]; then
-    echo ">>> VM is still running (ssh -p ${ssh_port} core@127.0.0.1)"
+    echo ">>> VM is still running (ssh -p ${FCOS_HARNESS_SSH_PORT} core@127.0.0.1)"
     echo ">>> Press Ctrl-C to stop..."
-    trap cleanup INT
-    wait "$(cat "${pid_file}")"
+    trap 'fh down; exit 0' INT
+    while kill -0 "$(cat "${FCOS_HARNESS_WORK_DIR}/qemu.pid")" 2>/dev/null; do
+        sleep 1
+    done
 fi
