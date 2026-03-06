@@ -175,10 +175,10 @@ func TestNFTablesAddBaseChain(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "test-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "test-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain input: %v", err)
 	}
-	if err := cm.AddBaseChain(ctx, "test-output", HookOutput); err != nil {
+	if err := cm.AddBaseChain(ctx, "test-output", HookOutput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain output: %v", err)
 	}
 	mustApply(t, cm)
@@ -206,7 +206,7 @@ func TestNFTablesConfigureChain(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -295,7 +295,7 @@ func TestNFTablesIdempotent(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -353,7 +353,7 @@ func TestNFTablesDeleteChain(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -396,7 +396,7 @@ func TestNFTablesIPv6(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -454,7 +454,7 @@ func TestNFTablesGoto(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -725,7 +725,7 @@ func TestNFTablesConfigureSet(t *testing.T) {
 		t.Fatalf("ConfigureSet: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -807,7 +807,7 @@ func TestNFTablesCustomTable(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "test-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "test-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 	mustApply(t, cm)
@@ -1082,7 +1082,7 @@ func TestNFTablesDeleteChainPreservesBaseChain(t *testing.T) {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
 
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -1137,7 +1137,7 @@ func TestNFTablesDeferredApply(t *testing.T) {
 	}
 
 	// Multiple mutations — none should flush yet.
-	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput, PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 

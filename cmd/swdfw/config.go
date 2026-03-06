@@ -27,6 +27,7 @@ type Config struct {
 type ChainConfig struct {
 	Name   string      `yaml:"name" json:"name"`
 	Hook   string      `yaml:"hook" json:"hook"`
+	Policy string      `yaml:"policy" json:"policy"`
 	Parent string      `yaml:"parent" json:"parent"`
 	JumpTo string      `yaml:"jump_to" json:"jump_to"`
 	Rules  []rule.Rule `yaml:"rules" json:"rules"`
@@ -88,6 +89,11 @@ func (c *Config) validate() error {
 			default:
 				return fmt.Errorf("chain %q: unsupported hook %q", ch.Name, ch.Hook)
 			}
+			switch strings.ToLower(ch.Policy) {
+			case "", "accept", "drop":
+			default:
+				return fmt.Errorf("chain %q: unsupported policy %q (must be \"accept\" or \"drop\")", ch.Name, ch.Policy)
+			}
 			if ch.Parent != "" {
 				return fmt.Errorf("chain %q: base chain (has hook) cannot have parent", ch.Name)
 			}
@@ -144,5 +150,14 @@ func parseHook(s string) chain.Hook {
 		return chain.HookForward
 	default:
 		return chain.HookInput
+	}
+}
+
+func parsePolicy(s string) chain.Policy {
+	switch strings.ToLower(s) {
+	case "drop":
+		return chain.PolicyDrop
+	default:
+		return chain.PolicyAccept
 	}
 }

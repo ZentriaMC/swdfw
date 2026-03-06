@@ -21,6 +21,11 @@ var hookToNFTables = map[Hook]nftables.ChainHook{
 	HookForward: *nftables.ChainHookForward,
 }
 
+type baseChainDef struct {
+	hook   Hook
+	policy Policy
+}
+
 type chainState struct {
 	rules       []rule.Rule
 	parentChain string
@@ -38,7 +43,7 @@ type ChainManagerNFTables struct {
 	tableName string
 	conn      *nftables.Conn
 
-	baseChains map[string]Hook
+	baseChains map[string]baseChainDef
 	chains     map[string]chainState
 	chainOrder []string
 	sets       map[string]setDef
@@ -55,7 +60,7 @@ func NewNFTablesManager(opts ...ChainManagerOpt) (ChainManager, error) {
 			quirks: map[Quirk]bool{},
 		},
 		tableName:  "swdfw",
-		baseChains: make(map[string]Hook),
+		baseChains: make(map[string]baseChainDef),
 		chains:     make(map[string]chainState),
 		sets:       make(map[string]setDef),
 	}
@@ -71,12 +76,12 @@ func NewNFTablesManager(opts ...ChainManagerOpt) (ChainManager, error) {
 	return cm, nil
 }
 
-func (c *ChainManagerNFTables) AddBaseChain(_ context.Context, name string, hook Hook) error {
+func (c *ChainManagerNFTables) AddBaseChain(_ context.Context, name string, hook Hook, policy Policy) error {
 	if _, ok := hookToNFTables[hook]; !ok {
 		return fmt.Errorf("unsupported hook: %d", hook)
 	}
 
-	c.baseChains[name] = hook
+	c.baseChains[name] = baseChainDef{hook: hook, policy: policy}
 	return nil
 }
 
@@ -190,9 +195,12 @@ func (c *ChainManagerNFTables) apply() error {
 	sort.Strings(baseChainNames)
 
 	for _, name := range baseChainNames {
-		hook := c.baseChains[name]
-		nftHook := hookToNFTables[hook]
+		def := c.baseChains[name]
+		nftHook := hookToNFTables[def.hook]
 		policy := nftables.ChainPolicyAccept
+		if def.policy == PolicyDrop {
+			policy = nftables.ChainPolicyDrop
+		}
 
 		ch := c.conn.AddChain(&nftables.Chain{
 			Name:     name,

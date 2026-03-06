@@ -79,7 +79,12 @@ func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentC
 	return c.runAllProtocols(ctx, "filter", "-E", tempName, name)
 }
 
-func (c *ChainManagerIPTables) AddBaseChain(ctx context.Context, name string, hook Hook) error {
+var policyToIPTables = map[Policy]string{
+	PolicyAccept: "ACCEPT",
+	PolicyDrop:   "DROP",
+}
+
+func (c *ChainManagerIPTables) AddBaseChain(ctx context.Context, name string, hook Hook, policy Policy) error {
 	parentChain, ok := hookToIPTablesChain[hook]
 	if !ok {
 		return fmt.Errorf("unsupported hook: %d", hook)
@@ -91,6 +96,16 @@ func (c *ChainManagerIPTables) AddBaseChain(ctx context.Context, name string, ho
 
 	if err := c.createChainIfNotExists(ctx, "filter", name); err != nil {
 		return err
+	}
+
+	// Set the built-in chain policy. This affects the entire chain, not just
+	// swdfw's rules — only appropriate when swdfw owns the firewall.
+	if target, ok := policyToIPTables[policy]; ok {
+		for proto := range c.protocols {
+			if perr := c.runCmd(ctx, c.iptables(proto, "filter", "-P", parentChain, target)...); perr != nil {
+				return fmt.Errorf("setting %s policy to %s: %w", parentChain, target, perr)
+			}
+		}
 	}
 
 	var err error

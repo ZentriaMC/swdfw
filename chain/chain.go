@@ -17,9 +17,17 @@ const (
 	HookForward
 )
 
+// Policy represents the default verdict for a base chain.
+type Policy int
+
+const (
+	PolicyAccept Policy = iota
+	PolicyDrop
+)
+
 type ChainManager interface {
 	io.Closer
-	AddBaseChain(ctx context.Context, name string, hook Hook) error
+	AddBaseChain(ctx context.Context, name string, hook Hook, policy Policy) error
 	ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) (err error)
 	DeleteChain(ctx context.Context, name string) (err error)
 }

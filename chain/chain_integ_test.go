@@ -241,12 +241,12 @@ func TestChainDockerIPTablesLegacy(t *testing.T) {
 
 	baseInput := "SWDFW-INPUT"
 	baseOutput := "SWDFW-OUTPUT"
-	err = c.AddBaseChain(ctx, baseInput, chain.HookInput)
+	err = c.AddBaseChain(ctx, baseInput, chain.HookInput, chain.PolicyAccept)
 	if err != nil {
 		t.Fatalf("failed to install base input chain: %s", err)
 	}
 
-	err = c.AddBaseChain(ctx, baseOutput, chain.HookOutput)
+	err = c.AddBaseChain(ctx, baseOutput, chain.HookOutput, chain.PolicyAccept)
 	if err != nil {
 		t.Fatalf("failed to install base output chain: %s", err)
 	}
@@ -320,7 +320,7 @@ func TestIPSetAtomicSwapDocker(t *testing.T) {
 
 	// Wire it into a rule and verify the chain works.
 	base := "SWDFW-SETTEST"
-	if err := c.AddBaseChain(ctx, base, chain.HookInput); err != nil {
+	if err := c.AddBaseChain(ctx, base, chain.HookInput, chain.PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -484,12 +484,12 @@ func TestChainDockerIPTablesNft(t *testing.T) {
 
 	baseInput := "SWDFWNFT-INPUT"
 	baseOutput := "SWDFWNFT-OUTPUT"
-	err = c.AddBaseChain(ctx, baseInput, chain.HookInput)
+	err = c.AddBaseChain(ctx, baseInput, chain.HookInput, chain.PolicyAccept)
 	if err != nil {
 		t.Fatalf("failed to install base input chain: %s", err)
 	}
 
-	err = c.AddBaseChain(ctx, baseOutput, chain.HookOutput)
+	err = c.AddBaseChain(ctx, baseOutput, chain.HookOutput, chain.PolicyAccept)
 	if err != nil {
 		t.Fatalf("failed to install base output chain: %s", err)
 	}

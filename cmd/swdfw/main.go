@@ -69,7 +69,11 @@ func printSummary(cfg *Config) {
 	fmt.Printf("\nChains:\n")
 	for _, ch := range cfg.Chains {
 		if ch.Hook != "" {
-			fmt.Printf("  %s (base, hook=%s)\n", ch.Name, ch.Hook)
+			policy := ch.Policy
+		if policy == "" {
+			policy = "accept"
+		}
+		fmt.Printf("  %s (base, hook=%s, policy=%s)\n", ch.Name, ch.Hook, policy)
 		} else {
 			extra := ""
 			if ch.JumpTo != "" {
@@ -115,7 +119,7 @@ func apply(cfg *Config) error {
 		if ch.Hook == "" {
 			continue
 		}
-		if err := cm.AddBaseChain(ctx, ch.Name, parseHook(ch.Hook)); err != nil {
+		if err := cm.AddBaseChain(ctx, ch.Name, parseHook(ch.Hook), parsePolicy(ch.Policy)); err != nil {
 			return fmt.Errorf("adding base chain %q: %w", ch.Name, err)
 		}
 	}

@@ -63,7 +63,7 @@ func TestChain(t *testing.T) {
 
 	ctx := context.Background()
 	base := "SWDFW-INPUT"
-	err = c.AddBaseChain(ctx, base, chain.HookInput)
+	err = c.AddBaseChain(ctx, base, chain.HookInput, chain.PolicyAccept)
 	if err != nil {
 		t.Fatalf("failed to install base chain: %s", err)
 	}
@@ -75,6 +75,43 @@ func TestChain(t *testing.T) {
 
 	for _, cmd := range commands {
 		fmt.Println(cmd)
+	}
+}
+
+func TestAddBaseChainPolicyDrop(t *testing.T) {
+	var commands []string
+	recorder := chain.Executor(func(ctx context.Context, args ...string) error {
+		commands = append(commands, strings.Join(args, " "))
+		return nil
+	})
+
+	c, err := chain.NewIPTablesManager(
+		chain.WithCustomExecutor(recorder),
+		chain.WithFamilies(rule.FamilyIPv4),
+		chain.WithChecks(false),
+	)
+	if err != nil {
+		t.Fatalf("failed to initialize chainmanager: %s", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	ctx := context.Background()
+	if err := c.AddBaseChain(ctx, "SWDFW-INPUT", chain.HookInput, chain.PolicyDrop); err != nil {
+		t.Fatalf("AddBaseChain: %v", err)
+	}
+
+	foundPolicy := false
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "-P INPUT DROP") {
+			foundPolicy = true
+			break
+		}
+	}
+	if !foundPolicy {
+		t.Error("expected iptables -P INPUT DROP command")
+		for _, cmd := range commands {
+			t.Log(cmd)
+		}
 	}
 }
 
@@ -102,7 +139,7 @@ func TestConfigureChainAppendGotoFailure(t *testing.T) {
 
 	ctx := context.Background()
 	base := "SWDFW-INPUT"
-	if err := c.AddBaseChain(ctx, base, chain.HookInput); err != nil {
+	if err := c.AddBaseChain(ctx, base, chain.HookInput, chain.PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
@@ -222,7 +259,7 @@ func TestChainWithSets(t *testing.T) {
 	commands = nil // reset
 
 	base := "SWDFW-INPUT"
-	if err := c.AddBaseChain(ctx, base, chain.HookInput); err != nil {
+	if err := c.AddBaseChain(ctx, base, chain.HookInput, chain.PolicyAccept); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
 
