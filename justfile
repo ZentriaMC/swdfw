@@ -31,6 +31,10 @@ lint:
 tidy:
     go mod tidy
 
+# Run E2E tests on FCOS VM (requires fcos-harness, qemu, butane)
+test-e2e *FLAGS:
+    ./hack/test.sh {{FLAGS}}
+
 # Generate TCP option flags from RFC CSV
 generate:
     go run ./hack/parse_tcp_params.go < ./hack/tcp-parameters-1.csv

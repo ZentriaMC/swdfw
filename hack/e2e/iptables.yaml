@@ -1,0 +1,38 @@
+---
+backend: "iptables"
+
+families:
+  - "ipv4"
+
+chains:
+  - name: "e2e-input"
+    hook: "input"
+
+  # Chains listed in reverse priority order: swdfw uses -I (insert at head)
+  # so the last chain here ends up first in iptables evaluation order.
+  - name: "block-rest"
+    parent: "e2e-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        action: "block"
+      - protocol: "udp"
+        cidr: "0.0.0.0/0"
+        action: "block"
+
+  - name: "allow-icmp"
+    parent: "e2e-input"
+    rules:
+      - protocol: "icmp"
+        cidr: "0.0.0.0/0"
+        action: "allow"
+        flags:
+          - "icmp:echo-request"
+
+  - name: "allow-ssh"
+    parent: "e2e-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        start: 22
+        action: "allow"

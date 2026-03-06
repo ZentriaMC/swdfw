@@ -1,0 +1,37 @@
+---
+backend: "nftables"
+table: "swdfw-e2e"
+
+families:
+  - "ipv4"
+
+chains:
+  - name: "e2e-input"
+    hook: "input"
+
+  - name: "allow-ssh"
+    parent: "e2e-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        start: 22
+        action: "allow"
+
+  - name: "allow-icmp"
+    parent: "e2e-input"
+    rules:
+      - protocol: "icmp"
+        cidr: "0.0.0.0/0"
+        action: "allow"
+        flags:
+          - "icmp:echo-request"
+
+  - name: "block-rest"
+    parent: "e2e-input"
+    rules:
+      - protocol: "tcp"
+        cidr: "0.0.0.0/0"
+        action: "block"
+      - protocol: "udp"
+        cidr: "0.0.0.0/0"
+        action: "block"
