@@ -74,11 +74,12 @@ func TestRuleToExprsTCPAllow(t *testing.T) {
 		t.Fatal("expected Bitwise expression for /24 CIDR")
 	}
 
-	// Last expression should be Return verdict (matches iptables RETURN semantics).
+	// Last expression should be Accept verdict — terminates base chain evaluation
+	// so subsequent sibling chains don't override the allow.
 	last := exprs[len(exprs)-1]
 	v, ok := last.(*expr.Verdict)
-	if !ok || v.Kind != expr.VerdictReturn {
-		t.Fatalf("expected Return verdict, got %T %+v", last, last)
+	if !ok || v.Kind != expr.VerdictAccept {
+		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
 	}
 }
 
@@ -564,11 +565,11 @@ func TestRuleToExprsICMPType(t *testing.T) {
 		t.Fatal("expected Cmp expression with ICMP type code 8 (echo-request)")
 	}
 
-	// Last expression should be Return verdict.
+	// Last expression should be Accept verdict.
 	last := exprs[len(exprs)-1]
 	v, ok := last.(*expr.Verdict)
-	if !ok || v.Kind != expr.VerdictReturn {
-		t.Fatalf("expected Return verdict, got %T %+v", last, last)
+	if !ok || v.Kind != expr.VerdictAccept {
+		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
 	}
 }
 
@@ -700,11 +701,11 @@ func TestRuleToExprsSourceSet(t *testing.T) {
 		t.Fatal("expected Payload + Lookup expressions for source set")
 	}
 
-	// Last expression should be Return verdict.
+	// Last expression should be Accept verdict.
 	last := exprs[len(exprs)-1]
 	v, ok := last.(*expr.Verdict)
-	if !ok || v.Kind != expr.VerdictReturn {
-		t.Fatalf("expected Return verdict, got %T %+v", last, last)
+	if !ok || v.Kind != expr.VerdictAccept {
+		t.Fatalf("expected Accept verdict, got %T %+v", last, last)
 	}
 }
 

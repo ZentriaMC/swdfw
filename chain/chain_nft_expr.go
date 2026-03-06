@@ -278,10 +278,10 @@ func ifnameExprs(key expr.MetaKey, name string) []expr.Any {
 func verdictExpr(action rule.Action) (expr.Any, error) {
 	switch action {
 	case rule.ActionAllow:
-		// Use RETURN (not ACCEPT) to match iptables semantics: return to the
-		// parent chain so subsequent child chains can still evaluate the packet.
-		// ACCEPT would immediately terminate evaluation across all chains.
-		return &expr.Verdict{Kind: expr.VerdictReturn}, nil
+		// ACCEPT terminates evaluation of the base chain, preventing subsequent
+		// sibling chains from overriding the verdict (e.g. a later block-all).
+		// Other nftables tables/priorities still evaluate independently.
+		return &expr.Verdict{Kind: expr.VerdictAccept}, nil
 	case rule.ActionBlock:
 		return &expr.Reject{
 			Type: nftRejectICMPXUnreach,

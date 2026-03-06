@@ -1,0 +1,50 @@
+graph TD
+    subgraph CLI["swdfw CLI"]
+        CFG["config.yaml"] --> PARSE["Parse & Validate"]
+        PARSE --> BACKEND{Backend?}
+    end
+
+    subgraph NFT["nftables backend"]
+        BACKEND -->|nftables| NFT_APPLY["Atomic table replace<br/>(add → del → add)"]
+        NFT_APPLY --> NFT_TABLE["inet table <i>swdfw</i>"]
+
+        NFT_TABLE --> NFT_BASE["base chain<br/>(hook input, policy accept)"]
+        NFT_BASE -->|jump| NFT_C1["allow-ssh"]
+        NFT_BASE -->|jump| NFT_C2["allow-icmp"]
+        NFT_BASE -->|jump| NFT_C3["block-rest"]
+
+        NFT_C1 -->|match| ACCEPT1["accept"]
+        NFT_C1 -->|no match| NFT_C2
+        NFT_C2 -->|match| ACCEPT2["accept"]
+        NFT_C2 -->|no match| NFT_C3
+        NFT_C3 -->|match| REJECT1["reject"]
+        NFT_C3 -->|no match| POLICY["chain policy<br/>(accept)"]
+    end
+
+    subgraph IPT["iptables backend"]
+        BACKEND -->|iptables| IPT_APPLY["Atomic swap<br/>(temp chain → rename)"]
+        IPT_APPLY --> INPUT["INPUT chain"]
+
+        INPUT -->|"-j base"| IPT_BASE["base chain"]
+        IPT_BASE -->|"-g allow-ssh"| IPT_C1["allow-ssh"]
+        IPT_BASE -->|"-g allow-icmp"| IPT_C2["allow-icmp"]
+        IPT_BASE -->|"-g block-rest"| IPT_C3["block-rest"]
+
+        IPT_C1 -->|match| RETURN1["RETURN → accept"]
+        IPT_C1 -->|no match| FALL1["→ INPUT policy"]
+        IPT_C2 -->|match| RETURN2["RETURN → accept"]
+        IPT_C2 -->|no match| FALL2["→ INPUT policy"]
+        IPT_C3 -->|match| REJECT2["REJECT"]
+        IPT_C3 -->|no match| FALL3["→ INPUT policy"]
+    end
+
+    style ACCEPT1 fill:#2d6,stroke:#181,color:#fff
+    style ACCEPT2 fill:#2d6,stroke:#181,color:#fff
+    style RETURN1 fill:#2d6,stroke:#181,color:#fff
+    style RETURN2 fill:#2d6,stroke:#181,color:#fff
+    style POLICY fill:#2d6,stroke:#181,color:#fff
+    style FALL1 fill:#2d6,stroke:#181,color:#fff
+    style FALL2 fill:#2d6,stroke:#181,color:#fff
+    style FALL3 fill:#2d6,stroke:#181,color:#fff
+    style REJECT1 fill:#d33,stroke:#811,color:#fff
+    style REJECT2 fill:#d33,stroke:#811,color:#fff
