@@ -158,6 +158,13 @@ func TestRuleToExprsZeroCIDR(t *testing.T) {
 
 // --- Integration tests (real netlink, isolated namespace) ---
 
+func mustApply(t *testing.T, cm ChainManager) {
+	t.Helper()
+	if err := cm.(Applier).Apply(context.Background()); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+}
+
 func TestNFTablesAddBaseChain(t *testing.T) {
 	conn := nftTestConn(t)
 	ctx := context.Background()
@@ -173,6 +180,7 @@ func TestNFTablesAddBaseChain(t *testing.T) {
 	if err := cm.AddBaseChain(ctx, "test-output", HookOutput); err != nil {
 		t.Fatalf("AddBaseChain output: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -218,6 +226,7 @@ func TestNFTablesConfigureChain(t *testing.T) {
 	if err := cm.ConfigureChain(ctx, "my-rules", "base-input", "", rules); err != nil {
 		t.Fatalf("ConfigureChain: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -306,6 +315,7 @@ func TestNFTablesIdempotent(t *testing.T) {
 	if err := cm.ConfigureChain(ctx, "idem-rules", "base-input", "", rules); err != nil {
 		t.Fatalf("ConfigureChain second: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -362,6 +372,7 @@ func TestNFTablesDeleteChain(t *testing.T) {
 	if err := cm.DeleteChain(ctx, "del-rules"); err != nil {
 		t.Fatalf("DeleteChain: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -401,6 +412,7 @@ func TestNFTablesIPv6(t *testing.T) {
 	if err := cm.ConfigureChain(ctx, "v6-rules", "base-input", "", rules); err != nil {
 		t.Fatalf("ConfigureChain: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -469,6 +481,7 @@ func TestNFTablesGoto(t *testing.T) {
 	if err := cm.ConfigureChain(ctx, "goto-source", "base-input", "goto-target", rules1); err != nil {
 		t.Fatalf("ConfigureChain source: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -728,6 +741,7 @@ func TestNFTablesConfigureSet(t *testing.T) {
 	if err := cm.ConfigureChain(ctx, "set-rules", "base-input", "", rules); err != nil {
 		t.Fatalf("ConfigureChain: %v", err)
 	}
+	mustApply(t, cm)
 
 	// Verify the set exists.
 	tables, err := conn.ListTables()
@@ -795,6 +809,7 @@ func TestNFTablesCustomTable(t *testing.T) {
 	if err := cm.AddBaseChain(ctx, "test-input", HookInput); err != nil {
 		t.Fatalf("AddBaseChain: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -1087,6 +1102,7 @@ func TestNFTablesDeleteChainPreservesBaseChain(t *testing.T) {
 	if err := cm.DeleteChain(ctx, "child-rules"); err != nil {
 		t.Fatalf("DeleteChain: %v", err)
 	}
+	mustApply(t, cm)
 
 	chains, err := conn.ListChains()
 	if err != nil {
@@ -1114,7 +1130,7 @@ func TestNFTablesDeferredApply(t *testing.T) {
 	conn := nftTestConn(t)
 	ctx := context.Background()
 
-	cm, err := NewNFTablesManager(WithNFTConn(conn), WithAutoApply(false))
+	cm, err := NewNFTablesManager(WithNFTConn(conn))
 	if err != nil {
 		t.Fatalf("NewNFTablesManager: %v", err)
 	}
