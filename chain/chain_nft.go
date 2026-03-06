@@ -37,6 +37,7 @@ type ChainManagerNFTables struct {
 
 	tableName string
 	conn      *nftables.Conn
+	autoApply bool
 
 	baseChains map[string]Hook
 	chains     map[string]chainState
@@ -55,6 +56,7 @@ func NewNFTablesManager(opts ...ChainManagerOpt) (ChainManager, error) {
 			quirks: map[Quirk]bool{},
 		},
 		tableName:  "swdfw",
+		autoApply:  true,
 		baseChains: make(map[string]Hook),
 		chains:     make(map[string]chainState),
 		sets:       make(map[string]setDef),
@@ -77,7 +79,7 @@ func (c *ChainManagerNFTables) AddBaseChain(_ context.Context, name string, hook
 	}
 
 	c.baseChains[name] = hook
-	return c.apply()
+	return c.maybeApply()
 }
 
 func (c *ChainManagerNFTables) ConfigureChain(_ context.Context, name, parentChain, jumpTo string, rules []rule.Rule) error {
@@ -92,7 +94,7 @@ func (c *ChainManagerNFTables) ConfigureChain(_ context.Context, name, parentCha
 		c.chainOrder = append(c.chainOrder, name)
 	}
 
-	return c.apply()
+	return c.maybeApply()
 }
 
 func (c *ChainManagerNFTables) DeleteChain(_ context.Context, name string) error {
@@ -106,7 +108,7 @@ func (c *ChainManagerNFTables) DeleteChain(_ context.Context, name string) error
 	}
 	c.chainOrder = filtered
 
-	return c.apply()
+	return c.maybeApply()
 }
 
 func (c *ChainManagerNFTables) Close() error {
@@ -122,11 +124,26 @@ func (c *ChainManagerNFTables) ConfigureSet(_ context.Context, name string, cidr
 		return fmt.Errorf("set %q: %w", name, err)
 	}
 	c.sets[name] = setDef{cidrs: cidrs, v6: v6}
-	return c.apply()
+	return c.maybeApply()
 }
 
 func (c *ChainManagerNFTables) DeleteSet(_ context.Context, name string) error {
 	delete(c.sets, name)
+	return c.maybeApply()
+}
+
+func (c *ChainManagerNFTables) maybeApply() error {
+	if !c.autoApply {
+		return nil
+	}
+	return c.apply()
+}
+
+// Apply flushes the current in-memory state to the kernel as a single atomic
+// netlink batch. When auto-apply is enabled (the default), this is called
+// automatically after every mutation. When auto-apply is disabled (see
+// WithAutoApply), call Apply once after all mutations are complete.
+func (c *ChainManagerNFTables) Apply(_ context.Context) error {
 	return c.apply()
 }
 

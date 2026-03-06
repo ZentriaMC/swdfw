@@ -1109,3 +1109,58 @@ func TestNFTablesDeleteChainPreservesBaseChain(t *testing.T) {
 		t.Fatal("base-input chain should still exist after deleting child chain")
 	}
 }
+
+func TestNFTablesDeferredApply(t *testing.T) {
+	conn := nftTestConn(t)
+	ctx := context.Background()
+
+	cm, err := NewNFTablesManager(WithNFTConn(conn), WithAutoApply(false))
+	if err != nil {
+		t.Fatalf("NewNFTablesManager: %v", err)
+	}
+
+	// Multiple mutations — none should flush yet.
+	if err := cm.AddBaseChain(ctx, "base-input", HookInput); err != nil {
+		t.Fatalf("AddBaseChain: %v", err)
+	}
+
+	rules := []rule.Rule{
+		{
+			Protocol: "tcp",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
+			Port:     22,
+			Action:   "allow",
+		},
+	}
+	if err := cm.ConfigureChain(ctx, "deferred-rules", "base-input", "", rules); err != nil {
+		t.Fatalf("ConfigureChain: %v", err)
+	}
+
+	// Nothing should be visible in the kernel yet.
+	chains, err := conn.ListChains()
+	if err != nil {
+		t.Fatalf("ListChains: %v", err)
+	}
+	if len(chains) != 0 {
+		t.Fatalf("expected 0 chains before Apply, got %d", len(chains))
+	}
+
+	// Now apply — everything should appear atomically.
+	applier := cm.(Applier)
+	if err := applier.Apply(ctx); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	chains, err = conn.ListChains()
+	if err != nil {
+		t.Fatalf("ListChains: %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, ch := range chains {
+		found[ch.Name] = true
+	}
+	if !found["base-input"] || !found["deferred-rules"] {
+		t.Fatalf("expected both chains after Apply, got %v", found)
+	}
+}

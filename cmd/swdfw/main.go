@@ -130,6 +130,13 @@ func apply(cfg *Config) error {
 		}
 	}
 
+	// Flush deferred state to kernel (nftables with auto-apply disabled).
+	if applier, ok := cm.(chain.Applier); ok {
+		if err := applier.Apply(ctx); err != nil {
+			return fmt.Errorf("applying rules: %w", err)
+		}
+	}
+
 	return nil
 }
 

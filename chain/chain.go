@@ -30,6 +30,14 @@ type SetManager interface {
 	DeleteSet(ctx context.Context, name string) error
 }
 
+// Applier flushes accumulated state to the kernel. Backends that support
+// deferred application (see WithAutoApply) implement this interface.
+// When auto-apply is disabled, callers must call Apply after all mutations
+// to commit them in a single atomic batch.
+type Applier interface {
+	Apply(ctx context.Context) error
+}
+
 type ChainManagerOpt func(ChainManager)
 
 // NewIPTablesManager creates a ChainManager backed by iptables.

@@ -31,3 +31,18 @@ func WithNFTConn(conn *nftables.Conn) ChainManagerOpt {
 		c.conn = conn
 	}
 }
+
+// WithAutoApply controls whether each mutation immediately flushes state to the
+// kernel (default: true). When set to false, mutations only update in-memory
+// state; the caller must type-assert to Applier and call Apply to commit all
+// changes in a single atomic batch.
+func WithAutoApply(auto bool) ChainManagerOpt {
+	return func(cm ChainManager) {
+		c, ok := cm.(*ChainManagerNFTables)
+		if !ok {
+			panic(fmt.Errorf("WithAutoApply is valid only with nftables chain manager"))
+		}
+
+		c.autoApply = auto
+	}
+}
