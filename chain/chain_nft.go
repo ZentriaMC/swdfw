@@ -240,15 +240,17 @@ func (c *ChainManagerNFTables) apply() error {
 		}
 	}
 
-	// Add parent→child goto rules (preserving insertion order).
-	parentGotos := make(map[string][]string)
+	// Add parent→child jump rules (preserving insertion order).
+	// Jump (not goto) so that unmatched packets return to the parent
+	// chain and continue to the next child.
+	parentChildren := make(map[string][]string)
 	for _, name := range c.chainOrder {
 		state := c.chains[name]
 		if state.parentChain != "" {
-			parentGotos[state.parentChain] = append(parentGotos[state.parentChain], name)
+			parentChildren[state.parentChain] = append(parentChildren[state.parentChain], name)
 		}
 	}
-	for parent, children := range parentGotos {
+	for parent, children := range parentChildren {
 		parentCh := chainObjs[parent]
 		if parentCh == nil {
 			continue
@@ -259,7 +261,7 @@ func (c *ChainManagerNFTables) apply() error {
 				Chain: parentCh,
 				Exprs: []expr.Any{
 					&expr.Verdict{
-						Kind:  expr.VerdictGoto,
+						Kind:  expr.VerdictJump,
 						Chain: child,
 					},
 				},

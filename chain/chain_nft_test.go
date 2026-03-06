@@ -244,6 +244,36 @@ func TestNFTablesConfigureChain(t *testing.T) {
 	if len(gotRules) != 2 {
 		t.Fatalf("expected 2 rules, got %d", len(gotRules))
 	}
+
+	// Parent chain should have a jump (not goto) to my-rules.
+	var baseChain *nftables.Chain
+	for _, ch := range chains {
+		if ch.Name == "base-input" {
+			baseChain = ch
+			break
+		}
+	}
+	if baseChain == nil {
+		t.Fatal("chain base-input not found")
+	}
+
+	parentRules, err := conn.GetRules(baseChain.Table, baseChain)
+	if err != nil {
+		t.Fatalf("GetRules base-input: %v", err)
+	}
+	if len(parentRules) != 1 {
+		t.Fatalf("expected 1 rule in base-input, got %d", len(parentRules))
+	}
+
+	hasJump := false
+	for _, e := range parentRules[0].Exprs {
+		if v, ok := e.(*expr.Verdict); ok && v.Kind == expr.VerdictJump && v.Chain == "my-rules" {
+			hasJump = true
+		}
+	}
+	if !hasJump {
+		t.Fatal("expected jump verdict to my-rules in base-input")
+	}
 }
 
 func TestNFTablesIdempotent(t *testing.T) {

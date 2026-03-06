@@ -189,6 +189,9 @@ nft_output="$(fh_ssh -- "sudo nft list table inet swdfw-e2e")"
 echo "${nft_output}" | grep -q "dport 22"
 echo "${nft_output}" | grep -q "accept"
 echo "${nft_output}" | grep -q "reject\|drop"
+# Parent chain should use jump (not goto) so all children are reachable
+echo "${nft_output}" | grep -q "jump allow-ssh"
+echo "${nft_output}" | grep -q "jump block-rest"
 echo "    nftables rules verified OK"
 
 # Idempotency: run again, should succeed
