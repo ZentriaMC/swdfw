@@ -59,10 +59,18 @@ func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentC
 	// Append new goto to preserve declaration order across chains.
 	// During updates the old goto (higher in chain) evaluates briefly
 	// until deleted below — acceptable since both chains carry valid rules.
-	_ = c.runAllProtocols(ctx, "filter", "-A", parentChain, "-g", tempName)
+	if err := c.runAllProtocols(ctx, "filter", "-A", parentChain, "-g", tempName); err != nil {
+		// New goto failed — clean up temp chain so we don't leak it.
+		// The old chain remains active and unmodified.
+		_ = c.DeleteChain(ctx, tempName)
+		return fmt.Errorf("appending goto to parent chain: %w", err)
+	}
 
-	// Remove old chain references
-	_ = c.runAllProtocols(ctx, "filter", "-D", parentChain, "-g", name)
+	// Remove old chain reference. Non-fatal: both gotos existing briefly is
+	// acceptable since both chains carry valid rules.
+	if err := c.runAllProtocols(ctx, "filter", "-D", parentChain, "-g", name); err != nil {
+		zap.L().Warn("failed to remove old goto from parent", zap.String("chain", name), zap.Error(err))
+	}
 
 	if err := c.DeleteChain(ctx, name); err != nil {
 		zap.L().Warn("failed to clean up old chain", zap.String("chain", name), zap.Error(err))

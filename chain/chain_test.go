@@ -78,6 +78,77 @@ func TestChain(t *testing.T) {
 	}
 }
 
+func TestConfigureChainAppendGotoFailure(t *testing.T) {
+	var commands []string
+	failOnAppend := chain.Executor(func(ctx context.Context, args ...string) error {
+		cmd := strings.Join(args, " ")
+		commands = append(commands, cmd)
+		// Fail when appending a goto to the parent chain (the temp name contains ":").
+		if strings.Contains(cmd, "-A SWDFW-INPUT -g ") && strings.Contains(cmd, ":") {
+			return fmt.Errorf("simulated append failure")
+		}
+		return nil
+	})
+
+	c, err := chain.NewIPTablesManager(
+		chain.WithCustomExecutor(failOnAppend),
+		chain.WithFamilies(rule.FamilyIPv4),
+		chain.WithChecks(false),
+	)
+	if err != nil {
+		t.Fatalf("failed to initialize chainmanager: %s", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	ctx := context.Background()
+	base := "SWDFW-INPUT"
+	if err := c.AddBaseChain(ctx, base, chain.HookInput); err != nil {
+		t.Fatalf("AddBaseChain: %v", err)
+	}
+
+	rules := []rule.Rule{
+		{
+			Protocol: "tcp",
+			CIDR:     netip.MustParsePrefix("10.0.0.0/24"),
+			Port:     22,
+			Action:   "allow",
+		},
+	}
+
+	err = c.ConfigureChain(ctx, "myrules", base, "", rules)
+	if err == nil {
+		t.Fatal("expected error from ConfigureChain when append-goto fails")
+	}
+	if !strings.Contains(err.Error(), "appending goto") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the temp chain was cleaned up (flush + delete).
+	hasFlushTemp := false
+	hasDeleteTemp := false
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "-F myrules:") {
+			hasFlushTemp = true
+		}
+		if strings.Contains(cmd, "-X myrules:") {
+			hasDeleteTemp = true
+		}
+	}
+	if !hasFlushTemp {
+		t.Error("expected temp chain to be flushed on failure")
+	}
+	if !hasDeleteTemp {
+		t.Error("expected temp chain to be deleted on failure")
+	}
+
+	// Verify the old goto was NOT deleted (no -D for the real chain name).
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "-D SWDFW-INPUT -g myrules") && !strings.Contains(cmd, "myrules:") {
+			t.Error("should not delete old goto when append-goto failed")
+		}
+	}
+}
+
 func TestChainWithSets(t *testing.T) {
 	var commands []string
 	recorder := chain.Executor(func(ctx context.Context, args ...string) error {
