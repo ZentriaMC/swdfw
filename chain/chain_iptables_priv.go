@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 
 	"errors"
@@ -10,13 +11,30 @@ import (
 	"github.com/ZentriaMC/swdfw/rule"
 )
 
-func (c *ChainManagerIPTables) chainLength(name string, mod int) error {
-	const nameLimit = 24
+const (
+	// iptables allows 28 chars (29 with null terminator).
+	iptablesMaxChainLen = 28
+	// Temp chain suffix: ":%04x" → always 5 chars.
+	tempSuffixLen = 5
+	// User-facing chain name limit: must leave room for temp suffix.
+	chainNameLimit = iptablesMaxChainLen - tempSuffixLen // 23
+)
 
-	if l := len(name); l > (nameLimit + mod) {
-		return fmt.Errorf("chain name '%s' too long (%d > %d)", name, l, nameLimit+mod)
+func (c *ChainManagerIPTables) validateChainName(name string) error {
+	if l := len(name); l > chainNameLimit {
+		return fmt.Errorf("chain name %q too long (%d > %d)", name, l, chainNameLimit)
 	}
 	return nil
+}
+
+// tempChainName generates a temporary chain name with a random 4-hex-char suffix.
+// The result is guaranteed to fit within iptablesMaxChainLen.
+func tempChainName(name string) (string, error) {
+	var b [2]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generating temp chain name: %w", err)
+	}
+	return fmt.Sprintf("%s:%x", name, b), nil
 }
 
 func (c *ChainManagerIPTables) prog(proto rule.Family) string {

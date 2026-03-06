@@ -272,6 +272,140 @@ func TestChainDockerIPTablesLegacy(t *testing.T) {
 	}
 }
 
+func TestIPSetAtomicSwapDocker(t *testing.T) {
+	if !hasDocker {
+		t.SkipNow()
+	}
+
+	c, err := chain.NewIPTablesManager(
+		chain.WithCustomExecutor(dockerExecutor),
+		chain.WithFamilies(rule.FamilyIPv4),
+	)
+	if err != nil {
+		t.Fatalf("failed to initialize chainmanager: %s", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	sm := c.(chain.SetManager)
+	ctx := context.Background()
+
+	// Create initial set.
+	cidrs1 := []netip.Prefix{
+		netip.MustParsePrefix("10.0.0.0/24"),
+		netip.MustParsePrefix("192.168.1.0/24"),
+	}
+	if err := sm.ConfigureSet(ctx, "e2e-test", cidrs1); err != nil {
+		t.Fatalf("ConfigureSet initial: %v", err)
+	}
+
+	// Verify initial contents.
+	assertIPSetContains(t, "e2e-test", []string{"10.0.0.0/24", "192.168.1.0/24"})
+
+	// Update set with different CIDRs — should atomically swap.
+	cidrs2 := []netip.Prefix{
+		netip.MustParsePrefix("172.16.0.0/16"),
+		netip.MustParsePrefix("10.10.0.0/24"),
+		netip.MustParsePrefix("10.20.0.0/24"),
+	}
+	if err := sm.ConfigureSet(ctx, "e2e-test", cidrs2); err != nil {
+		t.Fatalf("ConfigureSet update: %v", err)
+	}
+
+	// Verify updated contents — old CIDRs should be gone.
+	assertIPSetContains(t, "e2e-test", []string{"172.16.0.0/16", "10.10.0.0/24", "10.20.0.0/24"})
+	assertIPSetNotContains(t, "e2e-test", []string{"10.0.0.0/24", "192.168.1.0/24"})
+
+	// Verify no temp sets left behind.
+	assertNoTempSets(t, "e2e-test")
+
+	// Wire it into a rule and verify the chain works.
+	base := "SWDFW-SETTEST"
+	if err := c.AddBaseChain(ctx, base, chain.HookInput); err != nil {
+		t.Fatalf("AddBaseChain: %v", err)
+	}
+
+	rules := []rule.Rule{
+		{
+			Protocol:  "tcp",
+			CIDR:      netip.MustParsePrefix("0.0.0.0/0"),
+			Port:      443,
+			Action:    "allow",
+			SourceSet: "e2e-test",
+		},
+	}
+	if err := c.ConfigureChain(ctx, "setrules-e2e", base, "", rules); err != nil {
+		t.Fatalf("ConfigureChain: %v", err)
+	}
+
+	// Verify chain was created with set reference.
+	var collectedRules bytes.Buffer
+	_, err = dockerResources["iptables"].Exec(
+		[]string{"/bin/sh", "-c", "iptables-save"},
+		dockertest.ExecOptions{StdOut: &collectedRules},
+	)
+	if err != nil {
+		t.Fatalf("failed to get rules: %v", err)
+	}
+	if !strings.Contains(collectedRules.String(), "--match-set e2e-test src") {
+		t.Fatal("expected --match-set e2e-test src in iptables-save output")
+	}
+
+}
+
+func assertIPSetContains(t *testing.T, setName string, expected []string) {
+	t.Helper()
+	var stdout bytes.Buffer
+	_, err := dockerResources["iptables"].Exec(
+		[]string{"/bin/sh", "-c", fmt.Sprintf("ipset list %s", setName)},
+		dockertest.ExecOptions{StdOut: &stdout},
+	)
+	if err != nil {
+		t.Fatalf("ipset list %s: %v", setName, err)
+	}
+	output := stdout.String()
+	for _, cidr := range expected {
+		if !strings.Contains(output, cidr) {
+			t.Errorf("expected %q in ipset %s, got:\n%s", cidr, setName, output)
+		}
+	}
+}
+
+func assertIPSetNotContains(t *testing.T, setName string, unexpected []string) {
+	t.Helper()
+	var stdout bytes.Buffer
+	_, err := dockerResources["iptables"].Exec(
+		[]string{"/bin/sh", "-c", fmt.Sprintf("ipset list %s", setName)},
+		dockertest.ExecOptions{StdOut: &stdout},
+	)
+	if err != nil {
+		t.Fatalf("ipset list %s: %v", setName, err)
+	}
+	output := stdout.String()
+	for _, cidr := range unexpected {
+		if strings.Contains(output, cidr) {
+			t.Errorf("unexpected %q in ipset %s, got:\n%s", cidr, setName, output)
+		}
+	}
+}
+
+func assertNoTempSets(t *testing.T, baseName string) {
+	t.Helper()
+	var stdout bytes.Buffer
+	_, err := dockerResources["iptables"].Exec(
+		[]string{"/bin/sh", "-c", "ipset list -n"},
+		dockertest.ExecOptions{StdOut: &stdout},
+	)
+	if err != nil {
+		t.Fatalf("ipset list -n: %v", err)
+	}
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, baseName+":") {
+			t.Errorf("temp set %q still exists after swap", line)
+		}
+	}
+}
+
 func TestChainDockerIPTablesNft(t *testing.T) {
 	if !hasDocker {
 		t.SkipNow()

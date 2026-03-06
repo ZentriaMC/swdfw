@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"time"
 
 	"errors"
 	"go.uber.org/zap"
@@ -44,13 +43,12 @@ func (c *ChainManagerIPTables) init() error {
 }
 
 func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentChain, jumpTo string, rules []rule.Rule) error {
-	if err := c.chainLength(name, 0); err != nil {
+	if err := c.validateChainName(name); err != nil {
 		return err
 	}
 
-	tempName := fmt.Sprintf("%s:%d", name, time.Now().Unix()&0xFFFF)
-	// Allow for n+6 here because temporary chain will contain unique suffix
-	if err := c.chainLength(tempName, 6); err != nil {
+	tempName, err := tempChainName(name)
+	if err != nil {
 		return err
 	}
 
@@ -79,7 +77,7 @@ func (c *ChainManagerIPTables) AddBaseChain(ctx context.Context, name string, ho
 		return fmt.Errorf("unsupported hook: %d", hook)
 	}
 
-	if err := c.chainLength(name, 0); err != nil {
+	if err := c.validateChainName(name); err != nil {
 		return err
 	}
 
@@ -147,9 +145,14 @@ func (c *ChainManagerIPTables) Close() error {
 	return nil
 }
 
+const (
+	ipsetMaxNameLen = 31
+	ipsetNameLimit  = ipsetMaxNameLen - tempSuffixLen // 26
+)
+
 func (c *ChainManagerIPTables) ConfigureSet(ctx context.Context, name string, cidrs []netip.Prefix) error {
-	if len(name) > 31 {
-		return fmt.Errorf("ipset name %q too long (%d > 31)", name, len(name))
+	if len(name) > ipsetNameLimit {
+		return fmt.Errorf("ipset name %q too long (%d > %d)", name, len(name), ipsetNameLimit)
 	}
 	if len(cidrs) == 0 {
 		return fmt.Errorf("set %q: at least one CIDR required", name)
@@ -175,9 +178,9 @@ func (c *ChainManagerIPTables) ConfigureSet(ctx context.Context, name string, ci
 	}
 
 	// Atomic swap: build a temp set, populate it, then swap with the real one.
-	tempName := fmt.Sprintf("%s:%d", name, time.Now().Unix()&0xFFFF)
-	if len(tempName) > 31 {
-		return fmt.Errorf("ipset temp name %q too long (%d > 31)", tempName, len(tempName))
+	tempName, err := tempChainName(name)
+	if err != nil {
+		return err
 	}
 
 	if err := c.runCmd(ctx, "ipset", "create", tempName, "hash:net", "family", family); err != nil {

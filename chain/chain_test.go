@@ -108,26 +108,40 @@ func TestChainWithSets(t *testing.T) {
 		t.Fatalf("ConfigureSet: %v", err)
 	}
 
-	// Verify ipset create, flush, add commands were recorded.
-	hasCreate := false
-	hasFlush := false
+	// Verify atomic swap: create temp, add CIDRs, create real, swap, destroy.
+	hasCreateTemp := false
+	hasCreateReal := false
+	hasSwap := false
+	hasDestroy := false
 	addCount := 0
 	for _, cmd := range commands {
-		if strings.Contains(cmd, "ipset create trusted") {
-			hasCreate = true
+		if strings.Contains(cmd, "ipset create trusted:") {
+			hasCreateTemp = true
 		}
-		if strings.Contains(cmd, "ipset flush trusted") {
-			hasFlush = true
+		if strings.Contains(cmd, "ipset create trusted hash:net") && !strings.Contains(cmd, "trusted:") {
+			hasCreateReal = true
 		}
-		if strings.Contains(cmd, "ipset add trusted") {
+		if strings.Contains(cmd, "ipset swap") {
+			hasSwap = true
+		}
+		if strings.Contains(cmd, "ipset destroy trusted:") {
+			hasDestroy = true
+		}
+		if strings.Contains(cmd, "ipset add trusted:") {
 			addCount++
 		}
 	}
-	if !hasCreate {
-		t.Error("expected ipset create command")
+	if !hasCreateTemp {
+		t.Error("expected ipset create command for temp set")
 	}
-	if !hasFlush {
-		t.Error("expected ipset flush command")
+	if !hasCreateReal {
+		t.Error("expected ipset create command for real set")
+	}
+	if !hasSwap {
+		t.Error("expected ipset swap command")
+	}
+	if !hasDestroy {
+		t.Error("expected ipset destroy command for old set")
 	}
 	if addCount != 2 {
 		t.Errorf("expected 2 ipset add commands, got %d", addCount)
