@@ -25,24 +25,21 @@ var hookToIPTablesChain = map[Hook]string{
 type ChainManagerIPTables struct {
 	*chainManagerBase
 
-	iptablesPath       string
-	ip6tablesPath      string
-	verifyIptablesPath bool
-	sets               map[string]setInfo
+	iptablesPath  string
+	ip6tablesPath string
+	sets          map[string]setInfo
 }
 
 func newChainManagerIPTables(base *chainManagerBase) *ChainManagerIPTables {
 	return &ChainManagerIPTables{
-		chainManagerBase:   base,
-		iptablesPath:       "iptables",
-		ip6tablesPath:      "ip6tables",
-		verifyIptablesPath: false,
-		sets:               make(map[string]setInfo),
+		chainManagerBase: base,
+		iptablesPath:     "iptables",
+		ip6tablesPath:    "ip6tables",
+		sets:             make(map[string]setInfo),
 	}
 }
 
 func (c *ChainManagerIPTables) init() error {
-	// TODO: c.verifyIptablesPath
 	return nil
 }
 
@@ -177,18 +174,44 @@ func (c *ChainManagerIPTables) ConfigureSet(ctx context.Context, name string, ci
 		family = "inet6"
 	}
 
+	// Atomic swap: build a temp set, populate it, then swap with the real one.
+	tempName := fmt.Sprintf("%s:%d", name, time.Now().Unix()&0xFFFF)
+	if len(tempName) > 31 {
+		return fmt.Errorf("ipset temp name %q too long (%d > 31)", tempName, len(tempName))
+	}
+
+	if err := c.runCmd(ctx, "ipset", "create", tempName, "hash:net", "family", family); err != nil {
+		return fmt.Errorf("set %q: create temp failed: %w", name, err)
+	}
+
+	// Clean up temp set on failure.
+	success := false
+	defer func() {
+		if !success {
+			_ = c.runCmd(ctx, "ipset", "destroy", tempName)
+		}
+	}()
+
+	for _, cidr := range cidrs {
+		if err := c.runCmd(ctx, "ipset", "add", tempName, cidr.String()); err != nil {
+			return fmt.Errorf("set %q: add %q failed: %w", name, cidr, err)
+		}
+	}
+
+	// Ensure the real set exists so swap has a target.
 	if err := c.runCmd(ctx, "ipset", "create", name, "hash:net", "family", family, "-exist"); err != nil {
 		return fmt.Errorf("set %q: create failed: %w", name, err)
 	}
 
-	if err := c.runCmd(ctx, "ipset", "flush", name); err != nil {
-		return fmt.Errorf("set %q: flush failed: %w", name, err)
+	// Atomic swap.
+	if err := c.runCmd(ctx, "ipset", "swap", tempName, name); err != nil {
+		return fmt.Errorf("set %q: swap failed: %w", name, err)
 	}
+	success = true
 
-	for _, cidr := range cidrs {
-		if err := c.runCmd(ctx, "ipset", "add", name, cidr.String()); err != nil {
-			return fmt.Errorf("set %q: add %q failed: %w", name, cidr, err)
-		}
+	// Destroy the old set (now under the temp name).
+	if err := c.runCmd(ctx, "ipset", "destroy", tempName); err != nil {
+		zap.L().Warn("failed to destroy old ipset", zap.String("set", tempName), zap.Error(err))
 	}
 
 	c.sets[name] = setInfo{v6: v6}
