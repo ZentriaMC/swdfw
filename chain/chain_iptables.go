@@ -61,8 +61,10 @@ func (c *ChainManagerIPTables) ConfigureChain(ctx context.Context, name, parentC
 		return err
 	}
 
-	// Insert new chain jump before old one
-	_ = c.runAllProtocols(ctx, "filter", "-I", parentChain, "-g", tempName)
+	// Append new goto to preserve declaration order across chains.
+	// During updates the old goto (higher in chain) evaluates briefly
+	// until deleted below — acceptable since both chains carry valid rules.
+	_ = c.runAllProtocols(ctx, "filter", "-A", parentChain, "-g", tempName)
 
 	// Remove old chain references
 	_ = c.runAllProtocols(ctx, "filter", "-D", parentChain, "-g", name)
