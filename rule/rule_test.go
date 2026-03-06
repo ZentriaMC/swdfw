@@ -430,6 +430,65 @@ func TestInterfaceToRulespec(t *testing.T) {
 	}
 }
 
+func TestConntrackStateToRulespec(t *testing.T) {
+	// Single state.
+	r := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"state:established"},
+	}
+	spec, err := r.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined := strings.Join(spec, " ")
+	if !strings.Contains(joined, "-m conntrack --ctstate ESTABLISHED") {
+		t.Fatalf("expected -m conntrack --ctstate ESTABLISHED, got: %s", joined)
+	}
+
+	// Multiple states.
+	r2 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+		Flags:    []string{"state:established", "state:related"},
+	}
+	spec2, err := r2.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined2 := strings.Join(spec2, " ")
+	if !strings.Contains(joined2, "-m conntrack --ctstate ESTABLISHED,RELATED") {
+		t.Fatalf("expected -m conntrack --ctstate ESTABLISHED,RELATED, got: %s", joined2)
+	}
+
+	// State appears before verdict.
+	ctIdx := strings.Index(joined2, "-m conntrack")
+	jIdx := strings.Index(joined2, "-j")
+	if ctIdx > jIdx {
+		t.Fatalf("expected conntrack match before verdict, ct at %d, -j at %d", ctIdx, jIdx)
+	}
+
+	// No state flags → no conntrack match.
+	r3 := rule.Rule{
+		Protocol: "tcp",
+		CIDR:     netip.MustParsePrefix("0.0.0.0/0"),
+		Port:     80,
+		Action:   "allow",
+	}
+	spec3, err := r3.ToRulespec("test")
+	if err != nil {
+		t.Fatalf("ToRulespec: %v", err)
+	}
+	joined3 := strings.Join(spec3, " ")
+	if strings.Contains(joined3, "conntrack") {
+		t.Fatalf("expected no conntrack match without state flags, got: %s", joined3)
+	}
+}
+
 func TestICMPTypeFlags(t *testing.T) {
 	// Valid ICMP rule with icmp:echo-request
 	validICMP := rule.Rule{

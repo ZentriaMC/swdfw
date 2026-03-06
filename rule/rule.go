@@ -279,6 +279,18 @@ func (r *Rule) ToRulespec(chainName string) (s []string, err error) {
 		}
 	}
 
+	// Conntrack state (-m conntrack --ctstate STATE[,STATE...]).
+	var ctStates []string
+	for _, flag := range r.Flags {
+		clean, _ := ParseFlag(flag)
+		if name, ok := strings.CutPrefix(clean, "state:"); ok {
+			ctStates = append(ctStates, strings.ToUpper(name))
+		}
+	}
+	if len(ctStates) > 0 {
+		s = append(s, "-m", "conntrack", "--ctstate", strings.Join(ctStates, ","))
+	}
+
 	// Interface matching.
 	if r.SourceInterface != "" {
 		s = append(s, "-i", r.SourceInterface)
